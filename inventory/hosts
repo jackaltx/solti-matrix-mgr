@@ -1,0 +1,24 @@
+# inventory/hosts
+# Example inventory for Matrix homeservers
+#
+# Adjust hostnames and connection parameters for your environment
+
+[matrix_servers]
+# Proxmox LXC container (from Helper-Script)
+matrix-test ansible_host=192.168.1.50 ansible_user=root
+
+# Alternative: Docker host running spantaleev playbook
+# matrix-prod ansible_host=matrix.example.com ansible_user=matrix
+
+[matrix_servers:vars]
+# Common connection settings
+ansible_python_interpreter=/usr/bin/python3
+
+# For LXC containers behind NAT/firewall
+# ansible_ssh_common_args='-o ProxyJump=jumphost.example.com'
+
+[webhooks:children]
+matrix_servers
+
+[bots:children]
+matrix_servers

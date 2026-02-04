@@ -1,0 +1,14 @@
+---
+# handlers/main.yml for synapse_config role
+
+- name: Restart Synapse
+  ansible.builtin.systemd:
+    name: "{{ synapse_service_name }}"
+    state: restarted
+  when: synapse_restart_on_config_change | default(true)
+
+- name: Reload Synapse
+  ansible.builtin.systemd:
+    name: "{{ synapse_service_name }}"
+    state: reloaded
+  when: synapse_restart_on_config_change | default(true)

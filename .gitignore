@@ -1,0 +1,59 @@
+# Ansible Collection .gitignore
+
+# Build artifacts
+*.tar.gz
+*.zip
+MANIFEST.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Ansible
+*.retry
+.ansible/
+ansible.log
+logs/
+
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+.molecule/
+
+# Vault files
+*vault*.yml
+*.vault
+.vault-pass
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Credentials and secrets
+*.pass
+*.token
+*.key
+*.pem
+secrets/
+credentials/
+
+# Environment
+.env
+.envrc
+
+# Temporary files
+tmp/
+temp/
+*.tmp

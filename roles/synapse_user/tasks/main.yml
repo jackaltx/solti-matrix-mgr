@@ -1,0 +1,41 @@
+---
+# tasks/main.yml for synapse_user role
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - synapse_homeserver_url is defined
+      - synapse_admin_token is defined
+    fail_msg: "synapse_homeserver_url and synapse_admin_token must be defined"
+
+- name: Manage Matrix users
+  jackaltx.solti_matrix_mgr.synapse_user:
+    homeserver_url: "{{ synapse_homeserver_url }}"
+    access_token: "{{ synapse_admin_token }}"
+    user_id: "{{ item.user_id }}"
+    state: "{{ item.state | default(synapse_user_default_state) }}"
+    password: "{{ item.password | default(omit) }}"
+    displayname: "{{ item.displayname | default(omit) }}"
+    admin: "{{ item.admin | default(synapse_user_default_admin) }}"
+    deactivated: "{{ item.deactivated | default(false) }}"
+    erase: "{{ item.erase | default(false) }}"
+    ratelimit_override: >-
+      {{
+        {'messages_per_second': synapse_bot_ratelimit_messages_per_second,
+         'burst_count': synapse_bot_ratelimit_burst_count}
+        if item.ratelimit_disabled | default(false) else omit
+      }}
+    validate_certs: "{{ synapse_validate_certs }}"
+  loop: "{{ synapse_users }}"
+  loop_control:
+    label: "{{ item.user_id }}"
+  no_log: "{{ synapse_no_log | default(true) }}"
+  register: synapse_user_results
+
+- name: Report user changes
+  ansible.builtin.debug:
+    msg: "User {{ item.item.user_id }}: {{ 'changed' if item.changed else 'unchanged' }}"
+  loop: "{{ synapse_user_results.results }}"
+  loop_control:
+    label: "{{ item.item.user_id }}"
+  when: synapse_user_results is defined and synapse_verbose | default(false)

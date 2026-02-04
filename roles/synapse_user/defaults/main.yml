@@ -1,0 +1,30 @@
+---
+# defaults/main.yml for synapse_user role
+
+# Connection settings (required, typically from group_vars)
+# synapse_homeserver_url: "https://matrix.example.com"
+# synapse_admin_token: "{{ vault_synapse_admin_token }}"
+synapse_validate_certs: true
+
+# User definitions - list of users to manage
+# synapse_users:
+#   - user_id: "@alice:example.com"
+#     password: "{{ vault_alice_password }}"
+#     displayname: "Alice Smith"
+#     admin: false
+#     state: present
+#   - user_id: "@bot.hookshot:example.com"
+#     password: "{{ vault_hookshot_password }}"
+#     displayname: "Hookshot Bot"
+#     admin: false
+#     state: present
+#     ratelimit_disabled: true  # Bots typically need this
+synapse_users: []
+
+# Default user settings
+synapse_user_default_admin: false
+synapse_user_default_state: present
+
+# Bot users get rate limiting disabled by default
+synapse_bot_ratelimit_messages_per_second: 0
+synapse_bot_ratelimit_burst_count: 0

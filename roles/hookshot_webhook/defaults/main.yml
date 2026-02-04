@@ -1,0 +1,55 @@
+---
+# defaults/main.yml for hookshot_webhook role
+# Manages matrix-hookshot generic webhook configuration
+
+# Hookshot connection settings
+hookshot_homeserver_url: "{{ synapse_homeserver_url | default('') }}"
+hookshot_bot_user: "@hookshot:{{ matrix_domain | default('example.com') }}"
+
+# Hookshot config paths (for spantaleev playbook)
+hookshot_config_dir: "/matrix/hookshot"
+hookshot_config_file: "{{ hookshot_config_dir }}/config.yml"
+
+# For standalone install:
+# hookshot_config_dir: "/etc/matrix-hookshot"
+# hookshot_config_file: "{{ hookshot_config_dir }}/config.yml"
+
+# Webhook definitions to manage
+# These get merged into the hookshot config or managed via state events
+hookshot_webhooks: []
+# Example:
+# hookshot_webhooks:
+#   - name: "ci-notifications"
+#     room_id: "!abcdef:example.com"
+#     enabled: true
+#     # Optional JS transformation function
+#     transformation: |
+#       if (data.status === 'success') {
+#         return { text: `✅ Build passed: ${data.project}` };
+#       } else {
+#         return { text: `❌ Build failed: ${data.project}`, html: `<b>Build failed</b>` };
+#       }
+#   - name: "alertmanager"
+#     room_id: "!alerts:example.com"
+#     enabled: true
+#     # Use built-in template
+#     template: "alertmanager"
+
+# Outbound webhooks (room events -> external URL)
+hookshot_outbound_webhooks: []
+# Example:
+# hookshot_outbound_webhooks:
+#   - name: "slack-mirror"
+#     room_id: "!general:example.com"
+#     url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+#     events:
+#       - "m.room.message"
+
+# Hookshot service (for restart handlers)
+hookshot_service_name: "matrix-hookshot"  # or container name for Docker
+hookshot_container_name: "matrix-hookshot"
+hookshot_is_containerized: true
+
+# Security settings
+hookshot_allow_js_transformations: false  # Enable with caution
+hookshot_webhook_secret_length: 32

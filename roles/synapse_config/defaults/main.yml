@@ -1,0 +1,57 @@
+---
+# defaults/main.yml for synapse_config role
+# Manages Synapse homeserver configuration via SSH/config file overlays
+
+# Target host info
+synapse_config_host: "{{ inventory_hostname }}"
+synapse_config_user: "root"  # Or synapse user if rootless
+
+# Paths - adjust based on your install method
+# For Proxmox Helper-Script LXC:
+synapse_config_dir: "/etc/synapse"
+synapse_homeserver_yaml: "{{ synapse_config_dir }}/homeserver.yaml"
+synapse_config_d_dir: "{{ synapse_config_dir }}/conf.d"
+
+# For Docker (spantaleev playbook):
+# synapse_config_dir: "/matrix/synapse/config"
+# synapse_homeserver_yaml: "{{ synapse_config_dir }}/homeserver.yaml"
+
+# Service management
+synapse_service_name: "matrix-synapse"  # systemd unit
+synapse_restart_on_config_change: true
+
+# Configuration overlays - merged into homeserver.yaml
+# These are written as separate conf.d files for easier management
+synapse_config_overlays: {}
+# Example:
+# synapse_config_overlays:
+#   logging:
+#     log_config: "/etc/synapse/log.yaml"
+#   federation:
+#     allow_public_rooms_over_federation: false
+#     federation_domain_whitelist:
+#       - trusted.example.com
+#   rate_limiting:
+#     rc_message:
+#       per_second: 0.2
+#       burst_count: 10
+
+# Direct homeserver.yaml patches (use sparingly)
+synapse_config_patches: []
+# Example:
+# synapse_config_patches:
+#   - key: "server_name"
+#     value: "example.com"
+#   - key: "enable_registration"
+#     value: false
+
+# App service registrations to install
+synapse_appservices: []
+# Example:
+# synapse_appservices:
+#   - name: hookshot
+#     registration_file: "{{ playbook_dir }}/files/hookshot-registration.yaml"
+#   - name: mautrix-telegram
+#     registration_file: "{{ playbook_dir }}/files/telegram-registration.yaml"
+
+synapse_appservice_dir: "{{ synapse_config_dir }}/appservices"

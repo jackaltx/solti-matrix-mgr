@@ -1,0 +1,85 @@
+---
+# tasks/main.yml for hookshot_webhook role
+# Manages matrix-hookshot generic webhook configuration
+
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - hookshot_config_dir is defined
+    fail_msg: "hookshot_config_dir must be defined"
+
+- name: Ensure hookshot config directory exists
+  ansible.builtin.file:
+    path: "{{ hookshot_config_dir }}"
+    state: directory
+    mode: '0750'
+
+- name: Read current hookshot config
+  ansible.builtin.slurp:
+    src: "{{ hookshot_config_file }}"
+  register: hookshot_config_current
+  failed_when: false
+
+- name: Parse current hookshot config
+  ansible.builtin.set_fact:
+    hookshot_config: "{{ (hookshot_config_current.content | b64decode | from_yaml) if hookshot_config_current.content is defined else {} }}"
+
+- name: Generate webhook secrets
+  ansible.builtin.set_fact:
+    webhook_secrets: "{{ webhook_secrets | default({}) | combine({item.name: lookup('password', '/dev/null chars=ascii_lowercase,digits length=' + (hookshot_webhook_secret_length | string))}) }}"
+  loop: "{{ hookshot_webhooks }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in (hookshot_existing_secrets | default({}))
+  no_log: true
+
+- name: Build webhook configuration
+  ansible.builtin.set_fact:
+    hookshot_generic_config:
+      generic:
+        enabled: true
+        urlPrefix: "{{ hookshot_config.generic.urlPrefix | default(hookshot_webhook_url_prefix | default('')) }}"
+        allowJsTransformationFunctions: "{{ hookshot_allow_js_transformations }}"
+        waitForComplete: false
+        enableHttpGet: false
+
+- name: Merge webhook config into hookshot config
+  ansible.builtin.set_fact:
+    hookshot_config_updated: "{{ hookshot_config | combine(hookshot_generic_config, recursive=True) }}"
+
+- name: Write updated hookshot config
+  ansible.builtin.copy:
+    content: "{{ hookshot_config_updated | to_nice_yaml }}"
+    dest: "{{ hookshot_config_file }}"
+    mode: '0640'
+    backup: true
+  notify: Restart Hookshot
+
+- name: Generate webhook documentation
+  ansible.builtin.template:
+    src: "webhooks.md.j2"
+    dest: "{{ hookshot_config_dir }}/webhooks.md"
+    mode: '0644'
+  when: hookshot_generate_docs | default(true)
+
+# Note: Actual webhook endpoint creation happens via Matrix state events
+# or bot commands (!hookshot webhook <name>). This role prepares the config
+# and documents the expected webhooks.
+
+- name: Display webhook setup instructions
+  ansible.builtin.debug:
+    msg: |
+      Webhook Configuration Complete
+      
+      To create webhook endpoints, in each target room:
+      1. Invite {{ hookshot_bot_user }} to the room
+      2. Give the bot moderator permissions
+      3. Run: !hookshot webhook {{ item.name }}
+      
+      The webhook URL will be provided in the admin DM.
+      
+      Expected webhooks:
+      {% for webhook in hookshot_webhooks %}
+      - {{ webhook.name }}: Room {{ webhook.room_id }}
+      {% endfor %}
+  when: hookshot_webhooks | length > 0

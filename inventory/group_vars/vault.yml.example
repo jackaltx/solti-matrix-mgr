@@ -1,0 +1,22 @@
+---
+# inventory/group_vars/vault.yml.example
+# Copy to vault.yml and encrypt with: ansible-vault encrypt vault.yml
+#
+# NEVER commit the unencrypted vault.yml to version control!
+
+# Synapse admin token
+# Generate with: 
+#   register-new-matrix-user -c /etc/synapse/homeserver.yaml -u admin -a
+#   Then get token from Element or via API
+vault_synapse_admin_token: "syt_CHANGEME"
+
+# User passwords
+vault_admin_password: "CHANGEME_secure_password_here"
+vault_hookshot_password: "CHANGEME_bot_password"
+vault_maubot_password: "CHANGEME_bot_password"
+vault_test_password: "test123"  # OK for test environments
+
+# Webhook secrets (if managing externally)
+vault_webhook_secrets:
+  ci-builds: "CHANGEME_random_string"
+  alerts: "CHANGEME_random_string"

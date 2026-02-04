@@ -1,0 +1,69 @@
+---
+# playbooks/site.yml
+# Full Matrix homeserver configuration playbook
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts playbooks/site.yml
+#   ansible-playbook -i inventory/hosts playbooks/site.yml --tags users
+#   ansible-playbook -i inventory/hosts playbooks/site.yml --tags config
+
+- name: Configure Matrix Homeserver
+  hosts: matrix_servers
+  gather_facts: true
+  
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml  # Encrypted secrets
+  
+  pre_tasks:
+    - name: Verify connectivity to Synapse Admin API
+      jackaltx.solti_matrix_mgr.synapse_info:
+        homeserver_url: "{{ synapse_homeserver_url }}"
+        access_token: "{{ synapse_admin_token }}"
+        gather:
+          - version
+      register: synapse_version
+      tags: always
+    
+    - name: Display server version
+      ansible.builtin.debug:
+        msg: "Connected to Synapse {{ synapse_version.version.server_version | default('unknown') }}"
+      tags: always
+
+  roles:
+    # Configure homeserver.yaml overlays and appservices
+    - role: jackaltx.solti_matrix_mgr.synapse_config
+      tags: [config, synapse]
+      when: synapse_config_overlays | default({}) | length > 0 or synapse_appservices | default([]) | length > 0
+    
+    # Manage users (creates bots, admins, regular users)
+    - role: jackaltx.solti_matrix_mgr.synapse_user
+      tags: [users, synapse]
+      when: synapse_users | default([]) | length > 0
+    
+    # Configure hookshot webhooks
+    - role: jackaltx.solti_matrix_mgr.hookshot_webhook
+      tags: [webhooks, hookshot]
+      when: hookshot_webhooks | default([]) | length > 0
+
+  post_tasks:
+    - name: Gather final server state
+      jackaltx.solti_matrix_mgr.synapse_info:
+        homeserver_url: "{{ synapse_homeserver_url }}"
+        access_token: "{{ synapse_admin_token }}"
+        gather:
+          - users
+          - rooms
+        limit: 50
+      register: final_state
+      tags: [verify, always]
+    
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          Configuration complete!
+          
+          Server: {{ synapse_homeserver_url }}
+          Users: {{ final_state.users_total | default('?') }}
+          Rooms: {{ final_state.rooms_total | default('?') }}
+      tags: [verify, always]

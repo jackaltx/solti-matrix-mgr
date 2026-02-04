@@ -1,0 +1,18 @@
+---
+namespace: jackaltx
+name: solti_matrix_mgr
+version: 0.1.0
+readme: README.md
+authors:
+  - Jack <jack@example.com>
+description: Ansible collection for managing Matrix homeservers (Synapse/Conduit) via Admin API
+license_file: LICENSE
+tags:
+  - matrix
+  - synapse
+  - conduit
+  - homeserver
+  - messaging
+  - solti
+dependencies: {}
+repository: https://github.com/jackaltx/solti-matrix-mgr

@@ -1,0 +1,15 @@
+---
+# handlers/main.yml for hookshot_webhook role
+
+- name: Restart Hookshot
+  community.docker.docker_container:
+    name: "{{ hookshot_container_name }}"
+    state: started
+    restart: true
+  when: hookshot_is_containerized | default(true)
+
+- name: Restart Hookshot (systemd)
+  ansible.builtin.systemd:
+    name: "{{ hookshot_service_name }}"
+    state: restarted
+  when: not (hookshot_is_containerized | default(true))
