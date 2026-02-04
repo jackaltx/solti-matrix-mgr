@@ -129,7 +129,7 @@ changed:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.homelab.matrix.plugins.module_utils.matrix_api import (
+from ansible_collections.jackaltx.solti_matrix_mgr.plugins.module_utils.matrix_api import (
     MatrixAdminAPI,
     get_user_info,
     create_or_update_user,

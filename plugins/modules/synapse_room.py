@@ -104,7 +104,7 @@ delete_id:
 import json
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
-from ansible_collections.homelab.matrix.plugins.module_utils.matrix_api import (
+from ansible_collections.jackaltx.solti_matrix_mgr.plugins.module_utils.matrix_api import (
     MatrixAdminAPI,
     get_room_info,
     delete_room,

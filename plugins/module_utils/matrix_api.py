@@ -45,7 +45,6 @@ class MatrixAdminAPI:
             method=method,
             headers=headers,
             data=body,
-            validate_certs=self.validate_certs,
         )
         
         status_code = info.get('status', -1)

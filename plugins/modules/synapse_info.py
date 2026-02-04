@@ -109,7 +109,7 @@ registration_tokens:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.homelab.matrix.plugins.module_utils.matrix_api import (
+from ansible_collections.jackaltx.solti_matrix_mgr.plugins.module_utils.matrix_api import (
     MatrixAdminAPI,
     get_server_version,
     list_rooms,
