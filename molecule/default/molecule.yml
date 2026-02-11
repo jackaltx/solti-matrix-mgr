@@ -16,5 +16,7 @@ provisioner:
     group_vars:
       all:
         ansible_connection: local
+        project_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        report_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/verify_output"
 verifier:
   name: ansible

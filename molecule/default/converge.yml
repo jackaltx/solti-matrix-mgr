@@ -15,6 +15,12 @@
         msg: "The MATRIX_ACCESS_TOKEN environment variable is not set."
       when: matrix_access_token | length == 0
 
+    - name: Create report directory
+      ansible.builtin.file:
+        path: "{{ report_root }}"
+        state: directory
+        mode: '0755'
+
     - name: Build content for a test event
       ansible.builtin.set_fact:
         test_event_content:
@@ -35,10 +41,7 @@
         content: "{{ test_event_content }}"
       register: matrix_event_result
 
-    - name: Assert that the event was posted successfully
-      ansible.builtin.assert:
-        that:
-          - matrix_event_result.changed
-          - matrix_event_result.event_id is defined
-        success_msg: "Molecule test event posted successfully."
-        fail_msg: "Failed to post Molecule test event."
+    - name: Store the result for verification
+      ansible.builtin.copy:
+        content: "{{ matrix_event_result | to_nice_json }}"
+        dest: "{{ report_root }}/matrix_event_result.json"
