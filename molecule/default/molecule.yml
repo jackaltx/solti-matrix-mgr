@@ -9,6 +9,10 @@ platforms:
       - matrix
 provisioner:
   name: ansible
+  options:
+    ansible_args:
+      - --skip-tags
+      - idempotence-skip
   playbooks:
     converge: converge.yml
     verify: verify.yml

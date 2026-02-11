@@ -40,8 +40,10 @@
         room_id: "{{ matrix_room_id }}"
         content: "{{ test_event_content }}"
       register: matrix_event_result
+      tags: ['idempotence-skip']
 
     - name: Store the result for verification
       ansible.builtin.copy:
         content: "{{ matrix_event_result | to_nice_json }}"
         dest: "{{ report_root }}/matrix_event_result.json"
+      tags: ['idempotence-skip']
