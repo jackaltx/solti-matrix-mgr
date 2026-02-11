@@ -1,6 +1,6 @@
 # SOLTI Matrix Manager Collection (jackaltx.solti_matrix_mgr)
 
-Ansible collection for managing Matrix homeservers (Synapse primarily) via the Admin API and configuration overlays.
+Ansible collection for managing Matrix homeservers (Synapse primarily) via the Admin API and configuration overlays, as well as providing a generic event posting mechanism to Matrix rooms.
 
 ## Overview
 
@@ -10,6 +10,7 @@ This collection provides:
   - `synapse_user` - Create/update/deactivate users
   - `synapse_room` - Query/delete rooms
   - `synapse_info` - Gather server facts (users, rooms, version)
+  - `matrix_event` - Post arbitrary content to Matrix rooms (pure transport layer)
 
 - **Roles** for declarative configuration:
   - `synapse_user` - Manage user accounts
@@ -77,6 +78,51 @@ ansible-playbook -i inventory/hosts playbooks/site.yml --check
 ```
 
 ## Module Reference
+
+### matrix_event
+
+The `matrix_event` module acts as a generic transport layer for posting arbitrary JSON content to Matrix rooms. It does not enforce any specific schema or structure on the content, allowing full flexibility for custom event types, including those with embedded Solti-specific data.
+
+**Parameters:**
+
+- `homeserver_url` (str, required): URL of the Matrix homeserver.
+- `access_token` (str, required): Bot or user access token for authentication.
+- `room_id` (str, required): Room ID (`!xxx:server.com`) or alias (`#xxx:server.com`).
+- `content` (dict, required): The full `content` dictionary for the Matrix event. This must include `msgtype` and `body`.
+- `transaction_id` (str, optional): Optional explicit transaction ID for idempotency.
+- `validate_certs` (bool, default: `true`): Validate SSL certificates.
+
+**Example Usage:**
+
+```yaml
+- name: Post a Solti verification failure event
+  set_fact:
+    failure_content:
+      msgtype: "m.text"
+      body: "❌ Verification FAILED for service 'loki'"
+      solti:
+        schema: "verify.fail.v1"
+        source: "molecule/test-env"
+        data:
+          service: "loki"
+          reason: "Health check failed"
+
+- name: Send verification failure event to Matrix
+  jackaltx.solti_matrix_mgr.matrix_event:
+    homeserver_url: "{{ matrix_homeserver_url }}"
+    access_token: "{{ matrix_access_token }}"
+    room_id: "#solti-verify:example.com"
+    content: "{{ failure_content }}"
+
+- name: Post a simple text message
+  jackaltx.solti_matrix_mgr.matrix_event:
+    homeserver_url: "{{ matrix_homeserver_url }}"
+    access_token: "{{ matrix_access_token }}"
+    room_id: "#general:example.com"
+    content:
+      msgtype: "m.text"
+      body: "Hello from Ansible!"
+```
 
 ### synapse_user
 
