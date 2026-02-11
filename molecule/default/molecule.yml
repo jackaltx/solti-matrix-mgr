@@ -1,0 +1,20 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: instance
+    groups:
+      - matrix
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    group_vars:
+      all:
+        ansible_connection: local
+verifier:
+  name: ansible
