@@ -11,6 +11,10 @@ provisioner:
   name: ansible
   env:
     ANSIBLE_SKIP_TAGS: "idempotence-skip"
+    # Propagate Matrix environment variables
+    MATRIX_HOMESERVER_URL: "{{ lookup('env', 'MATRIX_HOMESERVER_URL') }}"
+    MATRIX_ROOM_ID: "{{ lookup('env', 'MATRIX_ROOM_ID') }}"
+    MATRIX_ACCESS_TOKEN: "{{ lookup('env', 'MATRIX_ACCESS_TOKEN') }}"
   playbooks:
     converge: converge.yml
     verify: verify.yml
