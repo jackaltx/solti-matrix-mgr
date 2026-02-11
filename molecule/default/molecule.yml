@@ -9,8 +9,8 @@ platforms:
       - matrix
 provisioner:
   name: ansible
-  options:
-    extra_args: "--skip-tags idempotence-skip"
+  env:
+    ANSIBLE_SKIP_TAGS: "idempotence-skip"
   playbooks:
     converge: converge.yml
     verify: verify.yml
