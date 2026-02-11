@@ -170,6 +170,20 @@ def main():
     if module.check_mode:
         module.exit_json(changed=True, skipped=True, msg="Check mode, would post event")
 
+    # Initialize API client
+    try:
+        api = MatrixClientAPI(module, homeserver_url, access_token, validate_certs)
+    except Exception as e:
+        module.fail_json(msg=f"Failed to initialize Matrix API client: {str(e)}")
+
+    # Resolve room alias to ID if needed
+    resolved_room_id = resolve_room_identifier(api, room_id)
+    if not resolved_room_id:
+        module.fail_json(
+            msg=f"Failed to resolve room identifier: {room_id}",
+            room_id=room_id
+        )
+
     # Post event to Matrix (always use m.room.message for visibility)
     event_type = "m.room.message"
 
