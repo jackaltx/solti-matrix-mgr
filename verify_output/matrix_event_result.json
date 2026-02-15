@@ -1,0 +1,9 @@
+{
+    "changed": true,
+    "event_id": "$lCFI9s0LkWOrzaXPqRM9zmTrn7alG14X6zU_3w4AqyY",
+    "event_type": "m.room.message",
+    "failed": false,
+    "msg": "Event posted successfully",
+    "room_id": "!NGwlzxqbkdXnRGKvEF:jackaltx.com",
+    "transaction_id": "ansible-1770930994-8d2b0b06"
+}

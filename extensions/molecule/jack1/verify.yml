@@ -1,0 +1,36 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  vars:
+    # This must match the dest in the converge playbook
+    result_file: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/verify_output/matrix_event_result.json"
+
+  tasks:
+    - name: Check if result file exists
+      ansible.builtin.stat:
+        path: "{{ result_file }}"
+      register: stat_result_file
+
+    - name: Fail if result file is missing
+      ansible.builtin.fail:
+        msg: "Result file not found at {{ result_file }}. The converge playbook may have failed to create it."
+      when: not stat_result_file.stat.exists
+
+    - name: Load the result from the file
+      ansible.builtin.slurp:
+        src: "{{ result_file }}"
+      register: slurp_result
+
+    - name: Decode the result content
+      ansible.builtin.set_fact:
+        matrix_event_result: "{{ slurp_result.content | b64decode | from_json }}"
+
+    - name: Assert that the event was posted successfully
+      ansible.builtin.assert:
+        that:
+          - matrix_event_result.changed
+          - matrix_event_result.event_id is defined
+        success_msg: "Matrix event result is valid."
+        fail_msg: "Matrix event result is invalid. {{ matrix_event_result }}"

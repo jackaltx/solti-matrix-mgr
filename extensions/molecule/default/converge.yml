@@ -3,12 +3,6 @@
   hosts: all
   gather_facts: true
 
-  vars:
-    # Look up Matrix connection details from environment variables
-    matrix_homeserver_url: "{{ lookup('env', 'MATRIX_HOMESERVER_URL') | default('https://matrix-web.jackaltx.com') }}"
-    matrix_room_id: "{{ lookup('env', 'MATRIX_ROOM_ID') | default('#solti-verify:jackaltx.com') }}"
-    matrix_access_token: "{{ lookup('env', 'MATRIX_ACCESS_TOKEN') }}"
-
   tasks:
     - name: Fail if MATRIX_ACCESS_TOKEN is not set
       ansible.builtin.fail:
@@ -19,7 +13,7 @@
       ansible.builtin.file:
         path: "{{ report_root }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Build content for a test event
       ansible.builtin.set_fact:
@@ -31,7 +25,7 @@
             source: "molecule/default"
             data:
               message: "This is a test event from a Molecule scenario."
-              timestamp: "{{ ansible_date_time.iso8601 }}"
+              timestamp: "{{ ansible_facts['date_time']['iso8601'] }}"
 
     - name: Post the test event to Matrix
       jackaltx.solti_matrix_mgr.matrix_event:
@@ -40,10 +34,10 @@
         room_id: "{{ matrix_room_id }}"
         content: "{{ test_event_content }}"
       register: matrix_event_result
-      tags: ['idempotence-skip']
+      tags: ["idempotence-skip"]
 
     - name: Store the result for verification
       ansible.builtin.copy:
         content: "{{ matrix_event_result | to_nice_json }}"
         dest: "{{ report_root }}/matrix_event_result.json"
-      tags: ['idempotence-skip']
+      tags: ["idempotence-skip"]

@@ -134,6 +134,16 @@ def list_rooms(api, limit=100, search_term=None):
     return api.get(endpoint)
 
 
+def get_room_members(api, room_id):
+    """Get room members list."""
+    result = api.get(f"rooms/{room_id}/members")
+    if result['status_code'] == 200:
+        return result['body']
+    elif result['status_code'] == 404:
+        return None
+    return {'error': result['body'], 'status': result['status_code']}
+
+
 def delete_room(api, room_id, purge=True, block=False):
     """Delete/purge a room."""
     data = {

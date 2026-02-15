@@ -52,7 +52,7 @@ author:
 
 EXAMPLES = r'''
 - name: Get server version
-  homelab.matrix.synapse_info:
+  jackaltx.solti_matrix_mgr.synapse_info:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     gather:
@@ -60,7 +60,7 @@ EXAMPLES = r'''
   register: server_info
 
 - name: List all users
-  homelab.matrix.synapse_info:
+  jackaltx.solti_matrix_mgr.synapse_info:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     gather:
@@ -69,7 +69,7 @@ EXAMPLES = r'''
   register: user_list
 
 - name: Find rooms matching pattern
-  homelab.matrix.synapse_info:
+  jackaltx.solti_matrix_mgr.synapse_info:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     gather:
@@ -78,7 +78,7 @@ EXAMPLES = r'''
   register: project_rooms
 
 - name: Gather all information
-  homelab.matrix.synapse_info:
+  jackaltx.solti_matrix_mgr.synapse_info:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     gather:

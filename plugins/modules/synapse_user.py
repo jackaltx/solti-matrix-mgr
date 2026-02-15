@@ -74,7 +74,7 @@ author:
 
 EXAMPLES = r'''
 - name: Create a regular user
-  homelab.matrix.synapse_user:
+  jackaltx.solti_matrix_mgr.synapse_user:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     user_id: "@alice:example.com"
@@ -83,7 +83,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create an admin user
-  homelab.matrix.synapse_user:
+  jackaltx.solti_matrix_mgr.synapse_user:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     user_id: "@admin:example.com"
@@ -92,7 +92,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create a bot with no rate limits
-  homelab.matrix.synapse_user:
+  jackaltx.solti_matrix_mgr.synapse_user:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     user_id: "@hookshot:example.com"
@@ -104,7 +104,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Deactivate a user
-  homelab.matrix.synapse_user:
+  jackaltx.solti_matrix_mgr.synapse_user:
     homeserver_url: "https://matrix.example.com"
     access_token: "{{ admin_token }}"
     user_id: "@baduser:example.com"

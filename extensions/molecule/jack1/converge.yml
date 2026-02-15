@@ -1,0 +1,137 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: Fail if MATRIX_ACCESS_TOKEN is not set
+      ansible.builtin.fail:
+        msg: "The MATRIX_ACCESS_TOKEN environment variable is not set."
+      when: matrix_access_token | length == 0
+
+    - name: Create report directory
+      ansible.builtin.file:
+        path: "{{ report_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Get room information
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "{{ matrix_room_id }}"
+        state: info
+      register: room_info
+
+    - name: Debug Room information
+      ansible.builtin.debug:
+        var: room_info
+
+    - name: Get room members
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "{{ matrix_room_id }}"
+        state: members
+      register: room_members
+
+    - name: Debug Room members
+      ansible.builtin.debug:
+        var: room_members
+
+    # --- Disposable test room: delete if exists, create, inspect ---
+    - name: Delete disposable test room if it exists
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "#disposable-test-room:jackaltx.com"
+        state: absent
+        purge: true
+      register: disposable_delete
+      tags: ["idempotence-skip"]
+
+    - name: Debug disposable room deletion
+      ansible.builtin.debug:
+        var: disposable_delete
+
+    - name: Create disposable test room (owned by bot, invite user)
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_access_token }}"
+        room_id: "#disposable-test-room:jackaltx.com"
+        state: present
+        room_name: "Disposable Test Room"
+        room_alias_name: "disposable-test-room"
+        topic: "Temporary room created by molecule test"
+        invite:
+          - "{{ matrix_admin_user }}"
+      register: disposable_create
+      tags: ["idempotence-skip"]
+
+    - name: Debug disposable room creation
+      ansible.builtin.debug:
+        var: disposable_create
+
+    - name: User accepts invite to disposable test room
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "{{ disposable_create.room.room_id }}"
+        state: join
+      register: disposable_join
+      tags: ["idempotence-skip"]
+
+    - name: Debug join result
+      ansible.builtin.debug:
+        var: disposable_join
+
+    - name: Get disposable room info
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "#disposable-test-room:jackaltx.com"
+        state: info
+      register: disposable_info
+
+    - name: Debug disposable room info
+      ansible.builtin.debug:
+        var: disposable_info
+
+    - name: Get disposable room members
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_id: "#disposable-test-room:jackaltx.com"
+        state: members
+      register: disposable_members
+
+    - name: Debug disposable room members
+      ansible.builtin.debug:
+        var: disposable_members
+
+    - name: Build content for a test event
+      ansible.builtin.set_fact:
+        test_event_content:
+          msgtype: "m.text"
+          body: "Molecule test event for jackaltx.solti_matrix_mgr"
+          solti:
+            schema: "test.v1"
+            source: "molecule/default"
+            data:
+              message: "This is a test event from a Molecule scenario."
+              timestamp: "{{ ansible_facts['date_time']['iso8601'] }}"
+
+    - name: Post the test event to Matrix
+      jackaltx.solti_matrix_mgr.matrix_event:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_access_token }}"
+        room_id: "{{ matrix_room_id }}"
+        content: "{{ test_event_content }}"
+      register: matrix_event_result
+      tags: ["idempotence-skip"]
+
+    - name: Store the result for verification
+      ansible.builtin.copy:
+        content: "{{ matrix_event_result | to_nice_json }}"
+        dest: "{{ report_root }}/matrix_event_result.json"
+      tags: ["idempotence-skip"]
