@@ -10,6 +10,7 @@ This collection provides:
   - `synapse_user` - Create/update/deactivate users
   - `synapse_room` - Query/delete rooms
   - `synapse_info` - Gather server facts (users, rooms, version)
+  - `synapse_device_info` - Audit and manage user devices (access tokens)
   - `matrix_event` - Post arbitrary content to Matrix rooms (pure transport layer)
 
 - **Roles** for declarative configuration:
@@ -76,6 +77,23 @@ ansible-playbook -i inventory/hosts playbooks/site.yml --tags users
 # Check mode (dry run)
 ansible-playbook -i inventory/hosts playbooks/site.yml --check
 ```
+
+## Event Schemas
+
+This collection supports structured event posting to Matrix rooms. The `matrix_event` module acts as a generic transport layer for posting arbitrary content.
+
+For domain-specific event schemas used in the SOLTI system (verification results, deployment events, etc.), see:
+
+- **[Event Schema Documentation](docs/event-schemas.md)** - Complete schema definitions with examples
+- [Architecture Overview](docs/event-schemas.md#architecture-overview) - How events are structured
+- [Adding New Schemas](docs/event-schemas.md#adding-new-schemas) - Guidelines for extension
+
+## Documentation
+
+- **[Token Management Guide](docs/token-management.md)** - Comprehensive guide to managing Matrix access tokens
+- **[Playbook Examples](docs/playbook-examples.md)** - Common patterns and usage examples
+- **[Event Schemas](docs/event-schemas.md)** - Structured event posting schemas (if available)
+- **[Playbook Quick Reference](../../mylab/playbooks/matrix/README.md)** - Quick command reference (mylab installation)
 
 ## Module Reference
 
@@ -184,6 +202,28 @@ The `matrix_event` module acts as a generic transport layer for posting arbitrar
     limit: 100
   register: server_info
 ```
+
+### synapse_device_info
+
+```yaml
+- name: List all admin devices
+  jackaltx.solti_matrix_mgr.synapse_device_info:
+    homeserver_url: "https://matrix.example.com"
+    access_token: "{{ admin_token }}"
+    user_id: "@admin:example.com"
+  register: devices
+
+- name: Cleanup old ansible tokens
+  jackaltx.solti_matrix_mgr.synapse_device_info:
+    homeserver_url: "https://matrix.example.com"
+    access_token: "{{ admin_token }}"
+    user_id: "@admin:example.com"
+    user_agent_filter: "ansible-httpget"
+    older_than_days: 30
+    revoke_matched: true
+```
+
+See [Token Management Guide](docs/token-management.md) for detailed usage.
 
 ## Role Reference
 
