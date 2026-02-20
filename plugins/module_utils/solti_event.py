@@ -2,8 +2,12 @@
 SOLTI Event Structure Helpers
 
 Provides utilities for building Matrix events with SOLTI-specific structure:
-- Transport layer (Matrix): event_type, room_id
-- Payload layer (SOLTI): msgtype/body + solti nested structure
+- Layer 1 (Transport): msgtype == "com.solti.event" (machine-only)
+- Layer 2 (Envelope):  solti.{schema, timestamp, source, data}
+- Layer 3 (Content):   schema-specific data payload
+
+The bot (matrix-bot-nio.py) constructs human-readable summaries from the
+structured data — senders do not generate human-readable bodies.
 
 See solti-matrix-mgr/docs/event-schemas.md for schema definitions.
 """
@@ -43,8 +47,8 @@ def create_solti_event(schema, data, source=None):
         >>> # content now has msgtype, body, and solti fields
     """
     return {
-        "msgtype": "m.text",
-        "body": _generate_body(schema, data),
+        "msgtype": "com.solti.event",
+        "body": f"SOLTI event: {schema}",
         "solti": {
             "schema": schema,
             "timestamp": _iso_timestamp(),

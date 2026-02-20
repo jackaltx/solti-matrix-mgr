@@ -9,6 +9,7 @@ __metaclass__ = type
 import json
 import time
 import hashlib
+import random
 from ansible.module_utils.urls import fetch_url
 from ansible.module_utils.basic import AnsibleModule
 
@@ -194,8 +195,8 @@ class MatrixClientAPI:
         """
         Generate a unique transaction ID for event idempotency.
 
-        Uses timestamp + room_id + event_type hash to ensure uniqueness
-        while allowing retries to be idempotent.
+        Uses timestamp + random component + room_id + event_type hash to ensure uniqueness
+        even when multiple events are sent in rapid succession.
 
         Args:
             room_id: Room ID
@@ -204,10 +205,11 @@ class MatrixClientAPI:
         Returns:
             str: Transaction ID
         """
-        timestamp = str(int(time.time()))
-        unique_str = f"{timestamp}-{room_id}-{event_type}"
+        timestamp = str(int(time.time() * 1000))  # milliseconds
+        random_component = random.randint(1000, 9999)
+        unique_str = f"{timestamp}-{random_component}-{room_id}-{event_type}"
         hash_suffix = hashlib.md5(unique_str.encode()).hexdigest()[:8]
-        return f"ansible-{timestamp}-{hash_suffix}"
+        return f"ansible-{timestamp}-{random_component}-{hash_suffix}"
 
 
 # Helper functions for common operations
