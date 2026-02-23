@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install ansible-core molecule molecule-plugins[docker] docker
-          ansible-galaxy collection install community.docker
+          ansible-galaxy collection install community.docker ansible.posix
           ansible-galaxy collection build
           ansible-galaxy collection install jackaltx-solti_matrix_mgr-*.tar.gz
 
