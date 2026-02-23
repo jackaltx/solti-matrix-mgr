@@ -34,7 +34,7 @@
         state: present
         power_level_content_override:
           users:
-            "{{ matrix_admin_user }}": 100
+            "@admin:matrix.test": 100
             "{{ matrix_bot_user }}": 100
       register: room_creation
 
