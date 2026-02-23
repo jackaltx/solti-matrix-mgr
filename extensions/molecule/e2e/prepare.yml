@@ -1,0 +1,58 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Ensure data directory exists on host (ephemeral)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0777'
+      loop:
+        - "{{ molecule_ephemeral_directory }}/synapse_data"
+        - "{{ molecule_ephemeral_directory }}/synapse_data/media_store"
+      delegate_to: localhost
+
+    - name: Inject test homeserver.yaml
+      ansible.builtin.copy:
+        src: files/homeserver.yaml
+        dest: "{{ molecule_ephemeral_directory }}/synapse_data/homeserver.yaml"
+        mode: '0644'
+      delegate_to: localhost
+
+    - name: Generate signing key
+      ansible.builtin.command:
+        cmd: "docker exec {{ inventory_hostname }} python3 -m synapse.app.homeserver --config-path /data/homeserver.yaml --generate-keys"
+      delegate_to: localhost
+      changed_when: true
+
+    - name: Restart synapse to pick up config and keys
+      ansible.builtin.command:
+        cmd: "docker restart {{ inventory_hostname }}"
+      delegate_to: localhost
+      changed_when: true
+
+    - name: Wait for Synapse to be healthy
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/static/"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 2
+      delegate_to: localhost
+
+    - name: Register admin user
+      ansible.builtin.command:
+        cmd: >
+          docker exec {{ inventory_hostname }} 
+          register_new_matrix_user 
+          -c /data/homeserver.yaml 
+          -u admin 
+          -p {{ matrix_admin_password }} 
+          --admin 
+          --no-review 
+          http://localhost:8008
+      delegate_to: localhost
+      changed_when: true

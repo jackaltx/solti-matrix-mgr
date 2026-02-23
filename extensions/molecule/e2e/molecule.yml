@@ -1,0 +1,45 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: synapse-test
+    image: matrixdotorg/synapse:latest
+    # Run as a daemon with systemd-like init if needed, but Synapse works fine as simple process
+    command: run
+    volumes:
+      - "{{ molecule_ephemeral_directory }}/synapse_data:/data"
+    published_ports:
+      - "8008:8008/tcp"
+    networks:
+      - name: matrix-net
+provisioner:
+  name: ansible
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    group_vars:
+      all:
+        # Internal test credentials
+        matrix_homeserver_url: "http://localhost:8008"
+        matrix_admin_user: "@admin:matrix.test"
+        matrix_admin_password: "molecule_admin_password"
+        matrix_bot_user: "@bot:matrix.test"
+        matrix_bot_password: "molecule_bot_password"
+        matrix_room_alias: "test-room"
+        matrix_room_id: "#test-room:matrix.test"
+
+scenario:
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy
+
+verifier:
+  name: ansible

@@ -1,0 +1,59 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+
+  vars:
+    # We need an initial admin token to start
+    # In a real run, we'd login, but for CI we'll use our new self-healing!
+    # Providing an 'empty' token with credentials will trigger re-auth.
+    matrix_access_token: "empty"
+
+  tasks:
+    - name: Create bot user (via Admin user)
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_access_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ matrix_admin_password }}"
+        user_id: "{{ matrix_bot_user }}"
+        password: "{{ matrix_bot_password }}"
+        displayname: "E2E Test Bot"
+        state: present
+      register: bot_creation
+
+    - name: Create test room (via Bot user)
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ bot_creation.access_token }}"
+        user_id: "{{ matrix_bot_user }}"
+        password: "{{ matrix_bot_password }}"
+        room_id: "{{ matrix_room_id }}"
+        room_name: "E2E Integration Room"
+        room_alias_name: "{{ matrix_room_alias }}"
+        state: present
+      register: room_creation
+
+    - name: Post E2E test event
+      jackaltx.solti_matrix_mgr.matrix_event:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ room_creation.access_token }}"
+        user_id: "{{ matrix_bot_user }}"
+        password: "{{ matrix_bot_password }}"
+        room_id: "{{ matrix_room_id }}"
+        content:
+          msgtype: "com.solti.event"
+          body: "Hello from GitHub E2E Phase 1"
+          solti:
+            schema: "test.v1"
+            source: "molecule/e2e"
+            timestamp: "{{ now(fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+            data:
+              message: "Phase 1 Complete"
+      register: event_post
+
+    - name: Store event_id for Phase 2
+      ansible.builtin.copy:
+        content: "{{ event_post.event_id }}"
+        dest: "{{ molecule_ephemeral_directory }}/test_event_id.txt"
+      delegate_to: localhost
