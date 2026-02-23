@@ -32,6 +32,8 @@
         room_name: "E2E Integration Room"
         room_alias_name: "{{ matrix_room_alias }}"
         state: present
+        admins:
+          - "{{ matrix_bot_user }}"
       register: room_creation
 
     - name: Post E2E test event
