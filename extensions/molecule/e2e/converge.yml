@@ -33,6 +33,7 @@
         room_alias_name: "{{ matrix_room_alias }}"
         state: present
         admins:
+          - "{{ matrix_admin_user }}"
           - "{{ matrix_bot_user }}"
       register: room_creation
 
