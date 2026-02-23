@@ -23,8 +23,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ verifier_creation.access_token }}"
-        user_id: "{{ verifier_user }}"
-        password: "{{ verifier_password }}"
+        admin_user: "{{ verifier_user }}"
+        admin_password: "{{ verifier_password }}"
         room_id: "{{ matrix_room_id }}"
         state: join
 
