@@ -32,10 +32,8 @@
         room_name: "E2E Integration Room"
         room_alias_name: "{{ matrix_room_alias }}"
         state: present
-        power_level_content_override:
-          users:
-            "@admin:matrix.test": 100
-            "@bot:matrix.test": 100
+        admins:
+          - "@bot:matrix.test"
       register: room_creation
 
     - name: Post E2E test event
