@@ -4,43 +4,50 @@
   gather_facts: false
 
   tasks:
-    - name: Ensure data directory exists on host (ephemeral)
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: '0777'
-      loop:
-        - "{{ molecule_ephemeral_directory }}/synapse_data"
-        - "{{ molecule_ephemeral_directory }}/synapse_data/media_store"
+    - name: Generate Synapse config (using container as generator)
+      ansible.builtin.command:
+        cmd: >
+          docker run --rm 
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data 
+          -e SYNAPSE_SERVER_NAME=matrix.test 
+          -e SYNAPSE_REPORT_STATS=no 
+          matrixdotorg/synapse:latest generate
       delegate_to: localhost
+      changed_when: true
 
-    - name: Inject test homeserver.yaml
+    - name: Inject custom homeserver.yaml
       ansible.builtin.copy:
         src: files/homeserver.yaml
         dest: "{{ molecule_ephemeral_directory }}/synapse_data/homeserver.yaml"
         mode: '0644'
       delegate_to: localhost
 
-    - name: Generate signing key
+    - name: Ensure correct ownership of data dir
       ansible.builtin.command:
-        cmd: "docker exec {{ inventory_hostname }} python3 -m synapse.app.homeserver --config-path /data/homeserver.yaml --generate-keys"
+        cmd: "chmod -R 777 {{ molecule_ephemeral_directory }}/synapse_data"
       delegate_to: localhost
       changed_when: true
 
-    - name: Start synapse process in background
+    - name: Start synapse process in container
       ansible.builtin.command:
-        cmd: "docker exec -d {{ inventory_hostname }} python3 -m synapse.app.homeserver --config-path /data/homeserver.yaml"
+        cmd: >
+          docker run -d 
+          --name {{ inventory_hostname }} 
+          --network matrix-net
+          -p 8008:8008 
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data 
+          matrixdotorg/synapse:latest
       delegate_to: localhost
       changed_when: true
 
     - name: Wait for Synapse to be healthy
       ansible.builtin.uri:
-        url: "{{ matrix_homeserver_url }}/_matrix/static/"
+        url: "{{ matrix_homeserver_url }}/health"
         status_code: 200
       register: result
       until: result.status == 200
       retries: 30
-      delay: 2
+      delay: 5
       delegate_to: localhost
 
     - name: Register admin user
