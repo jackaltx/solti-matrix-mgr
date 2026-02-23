@@ -71,7 +71,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install ansible-lint ansible-core yamllint
-          ansible-galaxy collection install .
+          ansible-galaxy collection build
+          ansible-galaxy collection install jackaltx-solti_matrix_mgr-*.tar.gz
 
       - name: Run ansible-lint (strict on main, warnings on test)
         run: |
@@ -99,7 +100,8 @@ jobs:
       - name: Install Ansible
         run: |
           pip install ansible-core
-          ansible-galaxy collection install .
+          ansible-galaxy collection build
+          ansible-galaxy collection install jackaltx-solti_matrix_mgr-*.tar.gz
 
       - name: Syntax check all playbooks
         run: |
