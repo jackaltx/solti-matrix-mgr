@@ -27,9 +27,9 @@
       delegate_to: localhost
       changed_when: true
 
-    - name: Restart synapse to pick up config and keys
+    - name: Start synapse process in background
       ansible.builtin.command:
-        cmd: "docker restart {{ inventory_hostname }}"
+        cmd: "docker exec -d {{ inventory_hostname }} python3 -m synapse.app.homeserver --config-path /data/homeserver.yaml"
       delegate_to: localhost
       changed_when: true
 
