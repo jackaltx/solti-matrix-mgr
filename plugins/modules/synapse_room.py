@@ -270,6 +270,8 @@ def run_module():
     module_args = dict(
         homeserver_url=dict(type='str', required=True),
         access_token=dict(type='str', required=True, no_log=True),
+        admin_user=dict(type='str', required=False),
+        admin_password=dict(type='str', required=False, no_log=True),
         room_id=dict(type='str', required=True),
         state=dict(type='str', default='info', choices=['present', 'absent', 'info', 'members', 'join']),
         user_id=dict(type='str'),
@@ -306,6 +308,8 @@ def run_module():
         module.params['homeserver_url'],
         module.params['access_token'],
         module.params['validate_certs'],
+        user_id=module.params.get('admin_user'),
+        password=module.params.get('admin_password'),
     )
 
     room_id = module.params['room_id']
@@ -336,7 +340,7 @@ def run_module():
         # If Admin API failed but alias resolved, room still exists
         if (current_room is None or (isinstance(current_room, dict) and 'error' in current_room)) and alias_resolved:
             current_room = {'room_id': room_id, 'resolved_from_alias': True}
-    
+
     if state == 'info':
         if current_room and 'error' not in current_room:
             result['room'] = current_room
@@ -344,7 +348,7 @@ def run_module():
             module.fail_json(msg=f"Room not found: {room_id}")
         else:
             module.fail_json(msg=f"Failed to query room: {current_room}")
-    
+
     elif state == 'members':
         members = get_room_members(api, room_id)
         if members and 'error' not in members:
@@ -368,10 +372,10 @@ def run_module():
                     data['new_room_user_id'] = module.params['new_room_user_id']
                 if module.params['message']:
                     data['message'] = module.params['message']
-                
+
                 # Use v2 API for async deletion
                 resp = api.delete(f"rooms/{room_id}", data=data, api_version="v2")
-                
+
                 if resp['status_code'] == 200:
                     result['changed'] = True
                     result['delete_id'] = resp['body'].get('delete_id')
@@ -380,7 +384,7 @@ def run_module():
         else:
             # Room doesn't exist, nothing to do
             pass
-    
+
     elif state == 'join':
         # Join room using the Client-Server API.
         # The access_token owner is the user who joins.
@@ -389,31 +393,16 @@ def run_module():
         if module.check_mode:
             result['changed'] = True
         else:
-            join_url = f"{module.params['homeserver_url']}/_matrix/client/v3/rooms/{room_id}/join"
-            headers = {
-                "Authorization": f"Bearer {module.params['access_token']}",
-                "Content-Type": "application/json",
-            }
-            response, info = fetch_url(
-                module, join_url, method="POST",
-                headers=headers, data=json.dumps({}),
-            )
-            status_code = info.get('status', -1)
-            if status_code == 200:
-                try:
-                    body = json.loads(response.read())
-                except (ValueError, AttributeError):
-                    body = {}
+            # Use api._request to hit Client-Server API with self-healing
+            # We must use CLIENT_API_BASE instead of SYNAPSE_API_BASE
+            endpoint = f"rooms/{room_id}/join"
+            resp = api._request("POST", endpoint, data={}, api_version="client")
+
+            if resp['status_code'] == 200:
                 result['changed'] = True
-                result['room'] = body
+                result['room'] = resp['body']
             else:
-                body = {}
-                if 'body' in info:
-                    try:
-                        body = json.loads(info['body'])
-                    except ValueError:
-                        body = {'raw': info.get('body', '')}
-                module.fail_json(msg=f"Failed to join room: {body}")
+                module.fail_json(msg=f"Failed to join room: {resp['body']}")
 
     elif state == 'present':
         if current_room and 'error' not in current_room:
@@ -494,6 +483,10 @@ def run_module():
                         response=resp['body'],
                         url=resp.get('url', ''),
                     )
+
+    # Return updated token if re-authentication occurred
+    result['access_token'] = api.access_token
+    result['reauthenticated'] = api.reauthenticated
 
     module.exit_json(**result)
 

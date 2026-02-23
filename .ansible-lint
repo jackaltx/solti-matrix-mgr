@@ -1,0 +1,8 @@
+---
+profile: min
+exclude_paths:
+  - .git/
+  - .ansible/
+  - tmp/
+  - "**/*.md"
+yamllint_config_file: .yamllint

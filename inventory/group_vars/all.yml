@@ -4,9 +4,9 @@
 #
 # Sensitive values should be in vault.yml (ansible-vault encrypted)
 
-#=============================================================================
+# =============================================================================
 # HOMESERVER CONNECTION
-#=============================================================================
+# =============================================================================
 
 matrix_domain: "example.com"
 synapse_homeserver_url: "https://matrix.{{ matrix_domain }}"
@@ -15,9 +15,9 @@ synapse_homeserver_url: "https://matrix.{{ matrix_domain }}"
 # SSL verification (disable for self-signed certs in test environments)
 synapse_validate_certs: true
 
-#=============================================================================
+# =============================================================================
 # SYNAPSE CONFIGURATION OVERLAYS
-#=============================================================================
+# =============================================================================
 
 # These get written to /etc/synapse/conf.d/*.yaml and merged with homeserver.yaml
 synapse_config_overlays:
@@ -28,7 +28,7 @@ synapse_config_overlays:
     # federation_domain_whitelist:
     #   - matrix.org
     #   - example.com
-  
+
   # Rate limiting (relaxed for testing)
   rate_limiting:
     rc_message:
@@ -37,7 +37,7 @@ synapse_config_overlays:
     rc_registration:
       per_second: 0.1
       burst_count: 3
-  
+
   # Registration (closed by default)
   registration:
     enable_registration: false
@@ -45,9 +45,9 @@ synapse_config_overlays:
     # Use registration tokens for controlled signups
     registration_requires_token: true
 
-#=============================================================================
+# =============================================================================
 # USERS
-#=============================================================================
+# =============================================================================
 
 synapse_users:
   # Admin user
@@ -56,7 +56,7 @@ synapse_users:
     admin: true
     password: "{{ vault_admin_password }}"
     state: present
-  
+
   # Hookshot bot (for webhooks)
   - user_id: "@hookshot:{{ matrix_domain }}"
     displayname: "Hookshot Bot"
@@ -64,7 +64,7 @@ synapse_users:
     password: "{{ vault_hookshot_password }}"
     state: present
     ratelimit_disabled: true  # Bots need this
-  
+
   # Maubot (for other bots)
   - user_id: "@maubot:{{ matrix_domain }}"
     displayname: "Maubot"
@@ -72,21 +72,21 @@ synapse_users:
     password: "{{ vault_maubot_password }}"
     state: present
     ratelimit_disabled: true
-  
+
   # Test users for reference implementation
   - user_id: "@alice:{{ matrix_domain }}"
     displayname: "Alice (Test User)"
     password: "{{ vault_test_password }}"
     state: present
-  
+
   - user_id: "@bob:{{ matrix_domain }}"
     displayname: "Bob (Test User)"
     password: "{{ vault_test_password }}"
     state: present
 
-#=============================================================================
+# =============================================================================
 # APPSERVICES
-#=============================================================================
+# =============================================================================
 
 # Registration files for bridges/bots
 synapse_appservices: []
@@ -96,9 +96,9 @@ synapse_appservices: []
 #   - name: maubot
 #     registration_file: "{{ playbook_dir }}/files/appservices/maubot.yaml"
 
-#=============================================================================
+# =============================================================================
 # HOOKSHOT WEBHOOKS
-#=============================================================================
+# =============================================================================
 
 hookshot_webhook_url_prefix: "https://matrix.{{ matrix_domain }}/hookshot/webhook"
 
@@ -107,21 +107,21 @@ hookshot_webhooks:
   - name: "ci-builds"
     room_id: "!TBD:{{ matrix_domain }}"  # Create room first, then update
     enabled: true
-  
+
   # Alertmanager alerts
   - name: "alerts"
     room_id: "!TBD:{{ matrix_domain }}"
     enabled: true
     template: "alertmanager"
-  
+
   # Generic notifications
   - name: "notifications"
     room_id: "!TBD:{{ matrix_domain }}"
     enabled: true
 
-#=============================================================================
+# =============================================================================
 # PATHS (adjust for your install method)
-#=============================================================================
+# =============================================================================
 
 # For Proxmox Helper-Script LXC install:
 synapse_config_dir: "/etc/synapse"

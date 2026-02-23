@@ -195,6 +195,8 @@ def run_module():
     module_args = dict(
         homeserver_url=dict(type='str', required=True),
         access_token=dict(type='str', required=True, no_log=True),
+        admin_user=dict(type='str', required=False),
+        admin_password=dict(type='str', required=False, no_log=True),
         user_id=dict(type='str', required=True),
         user_agent_filter=dict(type='str'),
         older_than_days=dict(type='int'),
@@ -221,6 +223,8 @@ def run_module():
         module.params['homeserver_url'],
         module.params['access_token'],
         module.params['validate_certs'],
+        user_id=module.params.get('admin_user'),
+        password=module.params.get('admin_password'),
     )
 
     user_id = module.params['user_id']
@@ -266,6 +270,10 @@ def run_module():
 
             if failed:
                 module.warn(f"Failed to revoke devices: {', '.join(failed)}")
+
+    # Return updated token if re-authentication occurred
+    result['access_token'] = api.access_token
+    result['reauthenticated'] = api.reauthenticated
 
     module.exit_json(**result)
 

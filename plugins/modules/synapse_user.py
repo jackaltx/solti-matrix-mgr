@@ -142,6 +142,8 @@ def run_module():
     module_args = dict(
         homeserver_url=dict(type='str', required=True),
         access_token=dict(type='str', required=True, no_log=True),
+        admin_user=dict(type='str', required=False),
+        admin_password=dict(type='str', required=False, no_log=True),
         user_id=dict(type='str', required=True),
         state=dict(type='str', default='present', choices=['present', 'absent']),
         password=dict(type='str', no_log=True),
@@ -168,6 +170,8 @@ def run_module():
         module.params['homeserver_url'],
         module.params['access_token'],
         module.params['validate_certs'],
+        user_id=module.params.get('admin_user'),
+        password=module.params.get('admin_password'),
     )
 
     user_id = module.params['user_id']
@@ -175,7 +179,7 @@ def run_module():
 
     # Get current user state
     current_user = get_user_info(api, user_id)
-    
+
     if isinstance(current_user, dict) and 'error' in current_user:
         module.fail_json(msg=f"Failed to query user: {current_user}")
 
@@ -189,10 +193,10 @@ def run_module():
                     result['changed'] = True
                 else:
                     module.fail_json(msg=f"Failed to deactivate user: {resp['body']}")
-    
+
     elif state == 'present':
         needs_update = False
-        
+
         if current_user is None:
             needs_update = True
         else:
@@ -203,7 +207,7 @@ def run_module():
                 needs_update = True
             if current_user.get('deactivated', False) != module.params['deactivated']:
                 needs_update = True
-        
+
         if needs_update:
             if module.check_mode:
                 result['changed'] = True
@@ -221,7 +225,7 @@ def run_module():
                     result['user'] = resp['body']
                 else:
                     module.fail_json(msg=f"Failed to create/update user: {resp['body']}")
-        
+
         # Handle rate limit override
         if module.params['ratelimit_override'] is not None:
             rl = module.params['ratelimit_override']
@@ -240,6 +244,10 @@ def run_module():
         final_user = get_user_info(api, user_id)
         if final_user and not isinstance(final_user, dict) or 'error' not in final_user:
             result['user'] = final_user
+
+    # Return updated token if re-authentication occurred
+    result['access_token'] = api.access_token
+    result['reauthenticated'] = api.reauthenticated
 
     module.exit_json(**result)
 

@@ -144,6 +144,8 @@ def main():
         argument_spec=dict(
             homeserver_url=dict(type='str', required=True),
             access_token=dict(type='str', required=True, no_log=True),
+            user_id=dict(type='str', required=False),
+            password=dict(type='str', required=False, no_log=True),
             room_id=dict(type='str', required=True),
             content=dict(type='dict', required=True),
             state=dict(type='str', default='present', choices=['present', 'absent']),
@@ -171,8 +173,18 @@ def main():
         module.exit_json(changed=True, skipped=True, msg="Check mode, would post event")
 
     # Initialize API client
+    user_id = module.params.get('user_id')
+    password = module.params.get('password')
+
     try:
-        api = MatrixClientAPI(module, homeserver_url, access_token, validate_certs)
+        api = MatrixClientAPI(
+            module,
+            homeserver_url,
+            access_token,
+            validate_certs,
+            user_id=user_id,
+            password=password
+        )
     except Exception as e:
         module.fail_json(msg=f"Failed to initialize Matrix API client: {str(e)}")
 
@@ -202,6 +214,8 @@ def main():
                 room_id=resolved_room_id,
                 transaction_id=transaction_id or api._generate_transaction_id(resolved_room_id, event_type),
                 event_type=event_type,
+                access_token=api.access_token,
+                reauthenticated=api.reauthenticated,
                 msg="Event posted successfully"
             )
         else:

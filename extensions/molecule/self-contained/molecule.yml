@@ -1,0 +1,50 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+  options:
+    managed: false
+    ansible_connection_options:
+      ansible_connection: local
+platforms:
+  - name: local-test
+    groups:
+      - matrix
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    group_vars:
+      all:
+        project_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        test_tmp_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/synapse_test"
+
+        # Override paths for local testing
+        synapse_config_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/synapse_test/etc"
+        synapse_homeserver_yaml: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/synapse_test/etc/homeserver.yaml"
+        synapse_config_d_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/synapse_test/etc/conf.d"
+        synapse_appservice_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/synapse_test/etc/appservices"
+
+        # Test data
+        synapse_config_overlays:
+          federation:
+            allow_public_rooms_over_federation: false
+          registration:
+            enable_registration: false
+
+        # Mocking for local run
+        synapse_service_name: "none"
+        synapse_restart_on_config_change: false
+
+scenario:
+  test_sequence:
+    - destroy
+    - converge
+    - verify
+    - destroy
+
+verifier:
+  name: ansible

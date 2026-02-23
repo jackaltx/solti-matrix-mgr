@@ -10,11 +10,11 @@
 - name: Configure Matrix Homeserver
   hosts: matrix_servers
   gather_facts: true
-  
+
   vars_files:
     - ../inventory/group_vars/all.yml
     - ../inventory/group_vars/vault.yml  # Encrypted secrets
-  
+
   pre_tasks:
     - name: Verify connectivity to Synapse Admin API
       jackaltx.solti_matrix_mgr.synapse_info:
@@ -24,7 +24,7 @@
           - version
       register: synapse_version
       tags: always
-    
+
     - name: Display server version
       ansible.builtin.debug:
         msg: "Connected to Synapse {{ synapse_version.version.server_version | default('unknown') }}"
@@ -35,12 +35,12 @@
     - role: jackaltx.solti_matrix_mgr.synapse_config
       tags: [config, synapse]
       when: synapse_config_overlays | default({}) | length > 0 or synapse_appservices | default([]) | length > 0
-    
+
     # Manage users (creates bots, admins, regular users)
     - role: jackaltx.solti_matrix_mgr.synapse_user
       tags: [users, synapse]
       when: synapse_users | default([]) | length > 0
-    
+
     # Configure hookshot webhooks
     - role: jackaltx.solti_matrix_mgr.hookshot_webhook
       tags: [webhooks, hookshot]
@@ -57,12 +57,12 @@
         limit: 50
       register: final_state
       tags: [verify, always]
-    
+
     - name: Summary
       ansible.builtin.debug:
         msg: |
           Configuration complete!
-          
+
           Server: {{ synapse_homeserver_url }}
           Users: {{ final_state.users_total | default('?') }}
           Rooms: {{ final_state.rooms_total | default('?') }}

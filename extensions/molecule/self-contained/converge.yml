@@ -1,0 +1,57 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Create test config directory
+      ansible.builtin.file:
+        path: "{{ synapse_config_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create base homeserver.yaml
+      ansible.builtin.copy:
+        content: |
+          server_name: "test.local"
+          report_stats: false
+          app_service_config_files: []
+        dest: "{{ synapse_homeserver_yaml }}"
+        mode: '0644'
+
+    - name: Run synapse_config role
+      ansible.builtin.include_role:
+        name: jackaltx.solti_matrix_mgr.synapse_config
+
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Check if overlay federation.yaml exists
+      ansible.builtin.stat:
+        path: "{{ synapse_config_d_dir }}/federation.yaml"
+      register: fed_stat
+
+    - name: Assert federation.yaml exists
+      ansible.builtin.assert:
+        that: fed_stat.stat.exists
+        fail_msg: "federation.yaml overlay was not created"
+
+    - name: Read federation.yaml
+      ansible.builtin.slurp:
+        src: "{{ synapse_config_d_dir }}/federation.yaml"
+      register: fed_content
+
+    - name: Assert federation content is correct
+      ansible.builtin.assert:
+        that: "'allow_public_rooms_over_federation: false' in (fed_content.content | b64decode)"
+
+    - name: Read homeserver.yaml
+      ansible.builtin.slurp:
+        src: "{{ synapse_homeserver_yaml }}"
+      register: hs_content
+
+    - name: Assert homeserver.yaml contains app_service_config_files
+      ansible.builtin.assert:
+        that: "'app_service_config_files:' in (hs_content.content | b64decode)"

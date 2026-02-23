@@ -1,9 +1,11 @@
 {
+    "access_token": "VALUE_SPECIFIED_IN_NO_LOG_PARAMETER",
     "changed": true,
-    "event_id": "$lCFI9s0LkWOrzaXPqRM9zmTrn7alG14X6zU_3w4AqyY",
+    "event_id": "$obxlbEX77kmUS9kJ-PToPNYmp1XqDcf093WREbZlz3M",
     "event_type": "m.room.message",
     "failed": false,
     "msg": "Event posted successfully",
-    "room_id": "!NGwlzxqbkdXnRGKvEF:jackaltx.com",
-    "transaction_id": "ansible-1770930994-8d2b0b06"
+    "reauthenticated": false,
+    "room_id": "!FVPrMKXQqatQJpQNqu:jackaltx.com",
+    "transaction_id": "ansible-1771878578973-2897-0c4d470b"
 }

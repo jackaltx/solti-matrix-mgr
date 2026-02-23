@@ -1,0 +1,33 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+    level: warning
+  comments-indentation: false
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    level: warning
+  brackets:
+    level: warning
+  trailing-spaces:
+    level: warning
+  new-line-at-end-of-file:
+    level: warning
+  truthy:
+    level: warning
+  document-start:
+    level: warning
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+
+ignore: |
+  .git/
+  node_modules/
+  tmp/

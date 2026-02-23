@@ -19,6 +19,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "{{ matrix_room_id }}"
         state: info
       register: room_info
@@ -31,6 +33,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "{{ matrix_room_id }}"
         state: members
       register: room_members
@@ -44,6 +48,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "#disposable-test-room:jackaltx.com"
         state: absent
         purge: true
@@ -58,6 +64,9 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_access_token }}"
+        # Bot credentials for self-healing creation
+        admin_user: "{{ matrix_bot_user }}"
+        admin_password: "{{ matrix_bot_password }}"
         room_id: "#disposable-test-room:jackaltx.com"
         state: present
         room_name: "Disposable Test Room"
@@ -76,6 +85,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "{{ disposable_create.room.room_id }}"
         state: join
       register: disposable_join
@@ -89,6 +100,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "#disposable-test-room:jackaltx.com"
         state: info
       register: disposable_info
@@ -101,6 +114,8 @@
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
         room_id: "#disposable-test-room:jackaltx.com"
         state: members
       register: disposable_members
@@ -125,6 +140,8 @@
       jackaltx.solti_matrix_mgr.matrix_event:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_access_token }}"
+        user_id: "{{ matrix_bot_user }}"
+        password: "{{ matrix_bot_password }}"
         room_id: "{{ matrix_room_id }}"
         content: "{{ test_event_content }}"
       register: matrix_event_result
