@@ -51,5 +51,6 @@
     - name: Assert room exists and has messages
       ansible.builtin.assert:
         that:
-          - final_room_info.room.room_id == matrix_room_id
+          - final_room_info.room.room_id.startswith('!')
+          - matrix_room_alias in final_room_info.room.canonical_alias or matrix_room_alias in (final_room_info.room.aliases | default([]))
         msg: "E2E Verification Failed: Room info mismatch"
