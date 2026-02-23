@@ -9,7 +9,7 @@ platforms:
     # Run as a daemon with systemd-like init if needed, but Synapse works fine as simple process
     command: run
     volumes:
-      - "{{ molecule_ephemeral_directory }}/synapse_data:/data"
+      - "/tmp/synapse_data:/data"
     published_ports:
       - "8008:8008/tcp"
     networks:

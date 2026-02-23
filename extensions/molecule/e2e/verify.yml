@@ -30,7 +30,7 @@
 
     - name: Read expected event ID
       ansible.builtin.slurp:
-        src: "{{ molecule_ephemeral_directory }}/test_event_id.txt"
+        src: "/tmp/synapse_test_event_id.txt"
       register: expected_event_id_raw
       delegate_to: localhost
 

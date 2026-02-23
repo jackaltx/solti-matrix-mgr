@@ -10,14 +10,14 @@
         state: directory
         mode: '0777'
       loop:
-        - "{{ molecule_ephemeral_directory }}/synapse_data"
-        - "{{ molecule_ephemeral_directory }}/synapse_data/media_store"
+        - "/tmp/synapse_data"
+        - "/tmp/synapse_data/media_store"
       delegate_to: localhost
 
     - name: Inject test homeserver.yaml
       ansible.builtin.copy:
         src: files/homeserver.yaml
-        dest: "{{ molecule_ephemeral_directory }}/synapse_data/homeserver.yaml"
+        dest: "/tmp/synapse_data/homeserver.yaml"
         mode: '0644'
       delegate_to: localhost
 
