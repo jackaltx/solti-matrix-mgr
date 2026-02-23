@@ -18,6 +18,7 @@ provisioner:
   inventory:
     group_vars:
       all:
+        ansible_connection: local
         matrix_homeserver_url: "http://localhost:8008"
         matrix_admin_user: "@admin:matrix.test"
         matrix_admin_password: "molecule_admin_password"
