@@ -36,3 +36,11 @@ jobs:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_PROJECT_DIRECTORY: ${{ github.workspace }}
+
+      - name: Upload Test Event ID Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synapse-test-event-id
+          path: synapse_test_event_id.txt
+          if-no-files-found: warn
