@@ -55,5 +55,5 @@
     - name: Store event_id for Phase 2
       ansible.builtin.copy:
         content: "{{ event_post.event_id }}"
-        dest: "/tmp/synapse_test_event_id.txt"
+        dest: "{{ molecule_ephemeral_directory }}/synapse_test_event_id.txt"
       delegate_to: localhost
