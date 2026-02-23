@@ -68,8 +68,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ansible-lint
-        run: pip install ansible-lint ansible-core yamllint
+      - name: Install dependencies
+        run: |
+          pip install ansible-lint ansible-core yamllint
+          ansible-galaxy collection install .
 
       - name: Run ansible-lint (strict on main, warnings on test)
         run: |
@@ -95,7 +97,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install Ansible
-        run: pip install ansible-core
+        run: |
+          pip install ansible-core
+          ansible-galaxy collection install .
 
       - name: Syntax check all playbooks
         run: |
