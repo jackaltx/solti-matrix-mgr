@@ -80,21 +80,30 @@ export MATRIX_BOT_SOLTI_LOGGER_PASSWORD="password"
 **Target:** Synapse in Docker (ephemeral)
 **Tests:**
 - Full integration test with Synapse homeserver
-- User creation (`synapse_user`)
+- User creation with `user_type: bot` (`synapse_user`)
 - Room creation (`synapse_room`)
 - Event posting (`matrix_event`)
-- Event verification via Admin API
+- Two-bot interaction (sender → receiver reply)
+- User type validation (`synapse_user_info`)
+- User deletion and deactivation lifecycle
+- Deletion idempotency
 
 **Workflow:** `.github/workflows/e2e.yml`
 
 **Process:**
 1. Create - Spin up Docker network and synapse container
 2. Prepare - Configure Synapse, register admin user
-3. Converge - Create bot, room, post event
-4. Verify - Create verifier bot, join room, verify event
+3. Converge - Create sender bot, room, post event
+4. Verify:
+   - Create receiver bot, join room, post reply
+   - Validate both bots have `user_type: bot`
+   - Delete receiver bot, verify deactivation
+   - Test deletion idempotency
+   - Delete sender bot
+   - Verify no active bot users remain
 5. Destroy - Clean up containers
 
-**Artifacts:** Event ID logged via debug output (check workflow logs)
+**Artifacts:** Event IDs logged via debug output (check workflow logs)
 
 ### self-contained
 
