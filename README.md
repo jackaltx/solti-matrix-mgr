@@ -52,6 +52,7 @@ Always provide `user_id` and `password` alongside the `access_token`. The module
 ```
 
 ### Parameters
+
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `homeserver_url` | str | Yes | URL of the Matrix homeserver. |
