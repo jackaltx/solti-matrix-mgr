@@ -5,4 +5,3 @@ exclude_paths:
   - .ansible/
   - tmp/
   - "**/*.md"
-yamllint_config_file: .yamllint

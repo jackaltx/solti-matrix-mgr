@@ -4,9 +4,9 @@ This collection provides robust Ansible modules for managing Matrix Synapse home
 
 ## Architectural Principles
 
-*   **Generic Matrix Client**: Acts as a pure transport/management layer, free of domain-specific business logic.
-*   **Self-Healing Authentication**: The `matrix_event` module and underlying `MatrixClientAPI` feature "Login-on-Failure." They automatically detect expired tokens and re-authenticate using provided credentials without failing the playbook.
-*   **Local Token Caching**: To prevent rate-limiting (`M_LIMIT_EXCEEDED`) and reduce API load, tokens are cached in `/tmp/ansible-matrix-token-<user_hash>` with restrictive permissions (0600).
+* **Generic Matrix Client**: Acts as a pure transport/management layer, free of domain-specific business logic.
+* **Self-Healing Authentication**: The `matrix_event` module and underlying `MatrixClientAPI` feature "Login-on-Failure." They automatically detect expired tokens and re-authenticate using provided credentials without failing the playbook.
+* **Local Token Caching**: To prevent rate-limiting (`M_LIMIT_EXCEEDED`) and reduce API load, tokens are cached in `/tmp/ansible-matrix-token-<user_hash>` with restrictive permissions (0600).
 
 ## Token Lifecycle Strategies
 
@@ -34,12 +34,12 @@ If `access_token` is invalid, the module logs in as `@bot`, gets a fresh token, 
 
 ## Key Development Files
 
-*   `plugins/modules/matrix_event.py`: Entry point for system notifications.
-*   `plugins/module_utils/matrix_client.py`: Core API logic including the self-healing and caching mechanisms.
-*   `mylab/playbooks/test-matrix-event.yml`: Comprehensive acid test for verifying authentication resiliency.
+* `plugins/modules/matrix_event.py`: Entry point for system notifications.
+* `plugins/module_utils/matrix_client.py`: Core API logic including the self-healing and caching mechanisms.
+* `mylab/playbooks/test-matrix-event.yml`: Comprehensive acid test for verifying authentication resiliency.
 
 ## Testing & Validation
 
-1.  **Unit/Integration**: Use Molecule scenarios in the `molecule/` directory.
-2.  **Authentication Resiliency**: Run `test-matrix-event.yml` with a deliberately invalid `MATRIX_ACCESS_TOKEN` to verify the self-healing and caching logic.
-3.  **Audit**: Use `mylab/playbooks/matrix/audit-tokens.yml` to monitor and clean up orphaned tokens for the admin user.
+1. **Unit/Integration**: Use Molecule scenarios in the `molecule/` directory.
+2. **Authentication Resiliency**: Run `test-matrix-event.yml` with a deliberately invalid `MATRIX_ACCESS_TOKEN` to verify the self-healing and caching logic.
+3. **Audit**: Use `mylab/playbooks/matrix/audit-tokens.yml` to monitor and clean up orphaned tokens for the admin user.

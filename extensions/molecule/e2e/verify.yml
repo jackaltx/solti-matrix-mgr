@@ -4,27 +4,29 @@
   gather_facts: false
 
   vars:
-    verifier_user: "@verifier:matrix.test"
-    verifier_password: "verifier_password"
+    receiver_user: "@receiver:matrix.test"
+    receiver_password: "receiver_password"
 
   tasks:
-    - name: Create verifier bot (via Admin)
+    - name: Create receiver bot (via Admin)
       jackaltx.solti_matrix_mgr.synapse_user:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "invalid"
         admin_user: "{{ matrix_admin_user }}"
         admin_password: "{{ matrix_admin_password }}"
-        user_id: "{{ verifier_user }}"
-        password: "{{ verifier_password }}"
+        user_id: "{{ receiver_user }}"
+        password: "{{ receiver_password }}"
+        displayname: "E2E Receiver Bot"
+        user_type: bot
         state: present
-      register: verifier_creation
+      register: receiver_creation
 
-    - name: Verifier bot joins room
+    - name: Receiver bot joins room
       jackaltx.solti_matrix_mgr.synapse_room:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ verifier_creation.access_token }}"
-        admin_user: "{{ verifier_user }}"
-        admin_password: "{{ verifier_password }}"
+        access_token: "{{ receiver_creation.access_token }}"
+        admin_user: "{{ receiver_user }}"
+        admin_password: "{{ receiver_password }}"
         room_id: "{{ matrix_room_id }}"
         state: join
 
@@ -38,13 +40,25 @@
       ansible.builtin.set_fact:
         expected_event_id: "{{ expected_event_id_raw.content | b64decode }}"
 
-    - name: Export event ID for CI artifact collection
-      ansible.builtin.copy:
-        content: "{{ expected_event_id }}"
-        dest: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/synapse_test_event_id.txt"
-        mode: '0644'
-      delegate_to: localhost
-      when: lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | length > 0
+    - name: Debug event ID (for CI logs only)
+      ansible.builtin.debug:
+        msg: "E2E Test Event ID: {{ expected_event_id }}"
+      when: lookup('env', 'CI') | length > 0
+
+    - name: Receiver bot posts reply to sender's event
+      jackaltx.solti_matrix_mgr.matrix_event:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ receiver_creation.access_token }}"
+        room_id: "{{ matrix_room_id }}"
+        content:
+          msgtype: "m.text"
+          body: "Acknowledged: Event {{ expected_event_id }} received and validated by receiver bot"
+      register: reply_post
+
+    - name: Debug reply event ID
+      ansible.builtin.debug:
+        msg: "Reply Event ID: {{ reply_post.event_id }}"
+      when: lookup('env', 'CI') | length > 0
 
     - name: Verify message arrival via Admin API (Simple Check)
       jackaltx.solti_matrix_mgr.synapse_room:
@@ -62,3 +76,111 @@
           - final_room_info.room.room_id.startswith('!')
           - matrix_room_alias in final_room_info.room.canonical_alias or matrix_room_alias in (final_room_info.room.aliases | default([]))
         msg: "E2E Verification Failed: Room info mismatch"
+
+    # =========================================================
+    # Validate Bot User Types
+    # =========================================================
+
+    - name: Login as admin to get access token
+      uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          identifier:
+            type: "m.id.user"
+            user: "{{ matrix_admin_user }}"
+          password: "{{ matrix_admin_password }}"
+        return_content: yes
+      register: admin_login
+
+    - name: Query all bot users
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_type: bot
+      register: bot_users
+
+    - name: Debug bot users found
+      ansible.builtin.debug:
+        msg:
+          - "Bot users found: {{ bot_users.total }}"
+          - "Bot user IDs: {{ bot_users.users | map(attribute='name') | list }}"
+      when: lookup('env', 'CI') | length > 0
+
+    - name: Assert both bots have user_type bot
+      ansible.builtin.assert:
+        that:
+          - bot_users.total >= 2
+          - bot_users.users | selectattr('name', 'equalto', matrix_bot_user) | list | length == 1
+          - bot_users.users | selectattr('name', 'equalto', receiver_user) | list | length == 1
+          - bot_users.users | selectattr('name', 'equalto', matrix_bot_user) | map(attribute='user_type') | first == 'bot'
+          - bot_users.users | selectattr('name', 'equalto', receiver_user) | map(attribute='user_type') | first == 'bot'
+        msg: "E2E Verification Failed: Bot user_type validation failed"
+        success_msg: "✓ Both sender and receiver bots have user_type: bot"
+
+    # =========================================================
+    # Test Tear-Down (Deletion)
+    # =========================================================
+
+    - name: Delete receiver bot
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_id: "{{ receiver_user }}"
+        state: absent
+      register: receiver_delete
+
+    - name: Verify receiver bot was deactivated
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_id: "{{ receiver_user }}"
+      register: receiver_check
+
+    - name: Assert receiver bot is deactivated
+      ansible.builtin.assert:
+        that:
+          - receiver_check.total == 1
+          - receiver_check.users[0].deactivated == true
+        msg: "Receiver bot should be deactivated"
+        success_msg: "✓ Receiver bot deactivated successfully"
+
+    - name: Delete receiver bot again (idempotency test)
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_id: "{{ receiver_user }}"
+        state: absent
+      register: receiver_delete_again
+
+    - name: Assert deletion is idempotent
+      ansible.builtin.assert:
+        that:
+          - not receiver_delete_again.changed
+        msg: "Deleting already-deactivated user should be idempotent"
+        success_msg: "✓ User deletion is idempotent"
+
+    - name: Delete sender bot
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_id: "{{ matrix_bot_user }}"
+        state: absent
+      register: sender_delete
+
+    - name: Query bot users after deletion
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ admin_login.json.access_token }}"
+        user_type: bot
+        deactivated: false
+      register: active_bots_after_delete
+
+    - name: Assert no active bot users remain
+      ansible.builtin.assert:
+        that:
+          - active_bots_after_delete.total == 0
+        msg: "All bot users should be deactivated"
+        success_msg: "✓ All bot users deactivated successfully"

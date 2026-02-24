@@ -1,0 +1,108 @@
+---
+# verify.yml - Verify users and rooms were created correctly
+
+- name: Verify - Check Test Users and Room
+  hosts: all
+  gather_facts: false
+
+  tasks:
+
+    # =========================================================
+    # Verify Users Exist
+    # =========================================================
+
+    - name: List all bot users
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_type: bot
+      register: bot_users
+
+    - name: Show bot users found
+      ansible.builtin.debug:
+        msg:
+          - "Bot users found: {{ bot_users.total }}"
+          - "User IDs: {{ bot_users.users | map(attribute='name') | list }}"
+
+    - name: Verify both test bots exist
+      ansible.builtin.assert:
+        that:
+          - bot_users.total >= 2
+          - bot_users.users | selectattr('name', 'contains', 'test-bot1') | list | length == 1
+          - bot_users.users | selectattr('name', 'contains', 'test-bot2') | list | length == 1
+        fail_msg: "Expected to find both test-bot1 and test-bot2"
+        success_msg: "Both test bots found"
+
+    - name: Verify bot users have correct user_type
+      ansible.builtin.assert:
+        that:
+          - item.user_type == 'bot'
+        fail_msg: "User {{ item.name }} does not have user_type='bot'"
+        success_msg: "User {{ item.name }} has user_type='bot'"
+      loop: "{{ bot_users.users | selectattr('name', 'contains', 'test-bot') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # =========================================================
+    # Verify Room Exists
+    # =========================================================
+
+    - name: Get test room info
+      jackaltx.solti_matrix_mgr.synapse_room_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        room_alias: "{{ matrix_rooms[0].room_alias }}"
+      register: room_info
+
+    - name: Show room info
+      ansible.builtin.debug:
+        msg:
+          - "Room found: {{ room_info.total == 1 }}"
+          - "Room ID: {{ room_info.rooms[0].room_id if room_info.total == 1 else 'NOT FOUND' }}"
+          - "Room name: {{ room_info.rooms[0].name if room_info.total == 1 else 'NOT FOUND' }}"
+
+    - name: Verify test room exists
+      ansible.builtin.assert:
+        that:
+          - room_info.total == 1
+          - room_info.rooms[0].name == matrix_rooms[0].name
+        fail_msg: "Test room not found or name mismatch"
+        success_msg: "Test room found with correct name"
+
+    # =========================================================
+    # Verify Idempotency
+    # =========================================================
+
+    - name: Re-run user creation (should be idempotent)
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ item.user_id }}:{{ matrix_homeserver_url.split('//')[-1].split(':')[0] }}"
+        displayname: "{{ item.displayname }}"
+        admin: "{{ item.role == 'admin' }}"
+        user_type: "bot"
+        state: "{{ item.state }}"
+      loop: "{{ matrix_users }}"
+      loop_control:
+        label: "{{ item.user_id }}"
+      register: idempotent_results
+
+    - name: Verify no changes on re-run
+      ansible.builtin.assert:
+        that:
+          - idempotent_results.results | selectattr('changed', 'equalto', true) | list | length == 0
+        fail_msg: "User creation was not idempotent - changes detected on re-run"
+        success_msg: "User creation is idempotent - no changes on re-run"
+
+    # =========================================================
+    # Summary
+    # =========================================================
+
+    - name: Verification summary
+      ansible.builtin.debug:
+        msg:
+          - "✓ Both test bots exist with user_type='bot'"
+          - "✓ Test room exists with correct name"
+          - "✓ User creation is idempotent"
+          - ""
+          - "All verifications passed!"

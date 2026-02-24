@@ -27,6 +27,8 @@ logs/
 .coverage
 htmlcov/
 .molecule/
+verify_output/
+synapse_test_event_id.txt
 
 # Vault files
 *vault*.yml
@@ -57,3 +59,10 @@ credentials/
 tmp/
 temp/
 *.tmp
+
+# Python virtual environments
+solti-venv/
+venv/
+.venv/
+env/
+ENV/

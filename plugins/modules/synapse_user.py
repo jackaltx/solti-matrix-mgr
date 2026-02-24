@@ -46,6 +46,10 @@ options:
         description: Whether user has admin privileges
         type: bool
         default: false
+    user_type:
+        description: Type of user account (null for normal, 'bot', or 'support')
+        type: str
+        choices: ['bot', 'support']
     deactivated:
         description: Whether to deactivate the account
         type: bool
@@ -98,6 +102,7 @@ EXAMPLES = r'''
     user_id: "@hookshot:example.com"
     password: "{{ bot_password }}"
     displayname: "Hookshot Bot"
+    user_type: bot
     ratelimit_override:
       messages_per_second: 0
       burst_count: 0
@@ -149,6 +154,7 @@ def run_module():
         password=dict(type='str', no_log=True),
         displayname=dict(type='str'),
         admin=dict(type='bool', default=False),
+        user_type=dict(type='str', choices=['bot', 'support']),
         deactivated=dict(type='bool', default=False),
         erase=dict(type='bool', default=False),
         ratelimit_override=dict(type='dict'),
@@ -205,6 +211,8 @@ def run_module():
                 needs_update = True
             if current_user.get('admin', False) != module.params['admin']:
                 needs_update = True
+            if module.params['user_type'] is not None and current_user.get('user_type') != module.params['user_type']:
+                needs_update = True
             if current_user.get('deactivated', False) != module.params['deactivated']:
                 needs_update = True
 
@@ -218,6 +226,7 @@ def run_module():
                     password=module.params['password'],
                     displayname=module.params['displayname'],
                     admin=module.params['admin'],
+                    user_type=module.params['user_type'],
                     deactivated=module.params['deactivated'],
                 )
                 if resp['status_code'] in [200, 201]:
