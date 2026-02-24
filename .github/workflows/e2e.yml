@@ -37,10 +37,5 @@ jobs:
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_PROJECT_DIRECTORY: ${{ github.workspace }}
 
-      - name: Upload Test Event ID Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: synapse-test-event-id
-          path: synapse_test_event_id.txt
-          if-no-files-found: warn
+      # Event ID is now logged via debug output in verify phase
+      # Check workflow logs for "E2E Test Event ID" message
