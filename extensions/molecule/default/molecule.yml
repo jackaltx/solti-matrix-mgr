@@ -20,7 +20,7 @@ provisioner:
     group_vars:
       all:
         project_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
-        report_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/verify_output"
+        report_root: "{{ molecule_ephemeral_directory }}/verify_output"
 
         # Pass environment variables to the test
         matrix_homeserver_url: "{{ lookup('env', 'MATRIX_HOMESERVER_URL') }}"

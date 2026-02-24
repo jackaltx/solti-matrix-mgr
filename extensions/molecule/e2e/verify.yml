@@ -38,13 +38,10 @@
       ansible.builtin.set_fact:
         expected_event_id: "{{ expected_event_id_raw.content | b64decode }}"
 
-    - name: Export event ID for CI artifact collection
-      ansible.builtin.copy:
-        content: "{{ expected_event_id }}"
-        dest: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/synapse_test_event_id.txt"
-        mode: '0644'
-      delegate_to: localhost
-      when: lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | length > 0
+    - name: Debug event ID (for CI logs only)
+      ansible.builtin.debug:
+        msg: "E2E Test Event ID: {{ expected_event_id }}"
+      when: lookup('env', 'CI') | length > 0
 
     - name: Verify message arrival via Admin API (Simple Check)
       jackaltx.solti_matrix_mgr.synapse_room:
