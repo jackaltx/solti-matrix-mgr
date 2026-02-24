@@ -59,3 +59,10 @@ credentials/
 tmp/
 temp/
 *.tmp
+
+# Python virtual environments
+solti-venv/
+venv/
+.venv/
+env/
+ENV/
