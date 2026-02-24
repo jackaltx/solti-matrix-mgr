@@ -81,12 +81,24 @@
     # Validate Bot User Types
     # =========================================================
 
+    - name: Login as admin to get access token
+      uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          identifier:
+            type: "m.id.user"
+            user: "{{ matrix_admin_user }}"
+          password: "{{ matrix_admin_password }}"
+        return_content: yes
+      register: admin_login
+
     - name: Query all bot users
       jackaltx.solti_matrix_mgr.synapse_user_info:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "invalid"
-        admin_user: "{{ matrix_admin_user }}"
-        admin_password: "{{ matrix_admin_password }}"
+        access_token: "{{ admin_login.json.access_token }}"
         user_type: bot
       register: bot_users
 
