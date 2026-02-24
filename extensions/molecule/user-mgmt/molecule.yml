@@ -1,0 +1,59 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+  options:
+    managed: false
+    ansible_connection_options:
+      ansible_connection: local
+platforms:
+  - name: instance
+    groups:
+      - matrix
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    group_vars:
+      all:
+        project_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        report_root: "{{ molecule_ephemeral_directory }}/verify_output"
+
+        # Pass environment variables to the test
+        matrix_homeserver_url: "{{ lookup('env', 'MATRIX_HOMESERVER_URL') }}"
+        matrix_admin_user: "{{ lookup('env', 'MATRIX_ADMIN_USER') }}"
+        matrix_admin_token: "{{ lookup('env', 'MATRIX_ADMIN_TOKEN') }}"
+
+        # Test user definitions
+        matrix_users:
+          - user_id: "@test-bot1"
+            displayname: "Test Bot 1"
+            role: bot
+            password: "testpass123"
+            state: present
+
+          - user_id: "@test-bot2"
+            displayname: "Test Bot 2"
+            role: bot
+            password: "testpass456"
+            state: present
+
+        # Test room definition
+        matrix_rooms:
+          - room_alias: "test-room"
+            name: "Test Room"
+            topic: "Room for user management testing"
+            state: present
+
+scenario:
+  test_sequence:
+    - destroy
+    - converge
+    - verify
+    - destroy
+
+verifier:
+  name: ansible

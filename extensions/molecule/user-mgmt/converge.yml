@@ -1,0 +1,72 @@
+---
+# converge.yml - Create test users and room for user management testing
+
+- name: Converge - Create Test Users and Room
+  hosts: all
+  gather_facts: false
+
+  vars:
+    # Map role to user_type
+    user_type_map:
+      bot: "bot"
+      support: "support"
+      admin: null
+      user: null
+
+  tasks:
+
+    - name: Show test configuration
+      ansible.builtin.debug:
+        msg:
+          - "Homeserver: {{ matrix_homeserver_url }}"
+          - "Test users: {{ matrix_users | map(attribute='user_id') | list }}"
+          - "Test room: {{ matrix_rooms[0].room_alias }}"
+
+    # =========================================================
+    # Create Users
+    # =========================================================
+
+    - name: Create test users
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
+        user_id: "{{ item.user_id }}:{{ matrix_homeserver_url.split('//')[-1].split(':')[0] }}"
+        displayname: "{{ item.displayname }}"
+        password: "{{ item.password }}"
+        admin: "{{ item.role == 'admin' }}"
+        user_type: "{{ user_type_map[item.role] | default(omit) }}"
+        state: "{{ item.state }}"
+        ratelimit_override: "{{ {'messages_per_second': 0, 'burst_count': 0} if item.role == 'bot' else omit }}"
+      loop: "{{ matrix_users }}"
+      loop_control:
+        label: "{{ item.user_id }}"
+      register: user_results
+
+    - name: Show user creation results
+      ansible.builtin.debug:
+        msg: "Created {{ user_results.results | selectattr('changed', 'equalto', true) | list | length }} users"
+
+    # =========================================================
+    # Create Room
+    # =========================================================
+
+    - name: Create test room
+      jackaltx.solti_matrix_mgr.synapse_room:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        admin_user: "{{ matrix_admin_user }}"
+        admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
+        alias: "{{ item.room_alias }}"
+        name: "{{ item.name }}"
+        topic: "{{ item.topic | default(omit) }}"
+        state: "{{ item.state }}"
+      loop: "{{ matrix_rooms }}"
+      loop_control:
+        label: "{{ item.room_alias }}"
+      register: room_results
+
+    - name: Show room creation results
+      ansible.builtin.debug:
+        msg: "Created {{ room_results.results | selectattr('changed', 'equalto', true) | list | length }} rooms"

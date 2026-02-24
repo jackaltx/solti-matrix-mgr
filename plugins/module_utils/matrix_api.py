@@ -9,6 +9,10 @@ __metaclass__ = type
 import json
 import hashlib
 import time
+try:
+    from urllib import quote
+except ImportError:
+    from urllib.parse import quote
 from ansible.module_utils.urls import fetch_url
 from ansible.module_utils.basic import AnsibleModule
 
@@ -175,7 +179,8 @@ class MatrixAdminAPI:
 # User management helpers
 def get_user_info(api, user_id):
     """Get user details. Returns None if user doesn't exist."""
-    result = api.get(f"users/{user_id}", api_version="v2")
+    encoded_user_id = quote(user_id, safe='')
+    result = api.get(f"users/{encoded_user_id}", api_version="v2")
     if result['status_code'] == 200:
         return result['body']
     elif result['status_code'] == 404:
@@ -184,7 +189,7 @@ def get_user_info(api, user_id):
         return {'error': result['body'], 'status': result['status_code']}
 
 
-def create_or_update_user(api, user_id, password=None, displayname=None, admin=False, deactivated=False):
+def create_or_update_user(api, user_id, password=None, displayname=None, admin=False, user_type=None, deactivated=False):
     """Create or update a user via PUT (upsert behavior)."""
     data = {
         "admin": admin,
@@ -194,15 +199,19 @@ def create_or_update_user(api, user_id, password=None, displayname=None, admin=F
         data["password"] = password
     if displayname:
         data["displayname"] = displayname
+    if user_type is not None:
+        data["user_type"] = user_type
 
-    result = api.put(f"users/{user_id}", data=data, api_version="v2")
+    encoded_user_id = quote(user_id, safe='')
+    result = api.put(f"users/{encoded_user_id}", data=data, api_version="v2")
     return result
 
 
 def deactivate_user(api, user_id, erase=False):
     """Deactivate a user account."""
     data = {"erase": erase}
-    result = api.post(f"deactivate/{user_id}", data=data)
+    encoded_user_id = quote(user_id, safe='')
+    result = api.post(f"deactivate/{encoded_user_id}", data=data)
     return result
 
 
@@ -256,13 +265,15 @@ def set_ratelimit_override(api, user_id, messages_per_second=0, burst_count=0):
         "messages_per_second": messages_per_second,
         "burst_count": burst_count,
     }
-    result = api.post(f"users/{user_id}/override_ratelimit", data=data)
+    encoded_user_id = quote(user_id, safe='')
+    result = api.post(f"users/{encoded_user_id}/override_ratelimit", data=data)
     return result
 
 
 def delete_ratelimit_override(api, user_id):
     """Remove rate limit override, restoring default limits."""
-    result = api.delete(f"users/{user_id}/override_ratelimit")
+    encoded_user_id = quote(user_id, safe='')
+    result = api.delete(f"users/{encoded_user_id}/override_ratelimit")
     return result
 
 

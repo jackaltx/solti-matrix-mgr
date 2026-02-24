@@ -8,6 +8,7 @@ This directory contains Molecule test scenarios for the `solti_matrix_mgr` colle
 | --- | --- | --- | --- |
 | **default** | Local Matrix | Test `matrix_event` module against live Matrix server | `molecule test` |
 | **jack1** | Local Matrix | Test `synapse_room` and `synapse_user` modules with self-healing auth | `molecule test -s jack1` |
+| **user-mgmt** | Local Matrix | Test `synapse_user` with user_type, `synapse_user_info`, and `synapse_room_info` | `molecule test -s user-mgmt` |
 | **e2e** | GitHub Actions | End-to-end integration test with Synapse in Docker | CI only |
 | **self-contained** | Local (mocked) | Test configuration generation without live server | `molecule test -s self-contained` |
 
@@ -47,6 +48,31 @@ export MATRIX_BOT_SOLTI_LOGGER_PASSWORD="password"
 **Requirements:** Same as `default` scenario
 
 **Artifacts:** `~/.ansible/tmp/molecule.*/verify_output/matrix_event_result.json`
+
+### user-mgmt
+
+**Location:** Local development
+**Target:** Live Matrix homeserver (requires credentials)
+**Tests:**
+
+- `synapse_user` module with `user_type` support (bot users)
+- `synapse_user_info` module (list/filter users by type)
+- `synapse_room_info` module (query rooms by alias)
+- Idempotent user creation
+- User-to-user_type mapping (role: bot → user_type: "bot")
+
+**Requirements:** Same as `default` scenario
+
+**Test Flow:**
+
+1. Create 2 bot users with `user_type: "bot"`
+2. Create test room
+3. Query bot users via `synapse_user_info`
+4. Verify user_type is set correctly
+5. Query room via `synapse_room_info`
+6. Verify idempotency
+
+**Artifacts:** None (verification via module queries)
 
 ### e2e
 
