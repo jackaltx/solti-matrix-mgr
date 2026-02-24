@@ -10,7 +10,7 @@
     matrix_access_token: "empty"
 
   tasks:
-    - name: Create bot user (via Admin user)
+    - name: Create sender bot (via Admin user)
       jackaltx.solti_matrix_mgr.synapse_user:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ matrix_access_token }}"
@@ -18,7 +18,8 @@
         admin_password: "{{ matrix_admin_password }}"
         user_id: "{{ matrix_bot_user }}"
         password: "{{ matrix_bot_password }}"
-        displayname: "E2E Test Bot"
+        displayname: "E2E Sender Bot"
+        user_type: bot
         state: present
       register: bot_creation
 
