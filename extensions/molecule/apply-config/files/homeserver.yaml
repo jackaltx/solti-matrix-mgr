@@ -1,0 +1,20 @@
+server_name: "matrix.test"
+report_stats: false
+database:
+  name: sqlite3
+  args:
+    database: "/data/homeserver.db"
+log_config: "/data/matrix.test.log.config"
+media_store_path: "/data/media_store"
+registration_shared_secret: "molecule_test_secret"
+enable_registration: true
+# Allow admin API
+enable_registration_without_verification: true
+# Standard ports
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    resources:
+      - names: [client, federation]
+        compress: false

@@ -1,0 +1,44 @@
+---
+name: Apply-Config Workflow Test
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apply-config:
+    name: Apply-Config Test (Declarative Workflow)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install ansible-core molecule molecule-plugins[docker] docker
+          ansible-galaxy collection install community.docker ansible.posix
+          ansible-galaxy collection build
+          ansible-galaxy collection install jackaltx-solti_matrix_mgr-*.tar.gz
+
+      - name: Run Apply-Config Molecule Test
+        run: |
+          molecule test -s apply-config
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+          MOLECULE_PROJECT_DIRECTORY: ${{ github.workspace }}
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "✅ Apply-config workflow test completed"
+          echo "Tested: inventory → converge → verify (production pattern)"

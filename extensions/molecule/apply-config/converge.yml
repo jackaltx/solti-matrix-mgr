@@ -1,0 +1,190 @@
+---
+# converge.yml - Apply declarative configuration using real apply-config.yml workflow
+# This mirrors production mylab usage: inventory defines desired state, playbook converges
+
+- name: Apply Matrix Configuration (Production Workflow)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Pull from inventory (group_vars/matrix_svc)
+    matrix_homeserver_url: "{{ hostvars['synapse-test']['matrix_homeserver_url'] }}"
+    matrix_domain: "{{ hostvars['synapse-test']['matrix_domain'] }}"
+    matrix_users: "{{ hostvars['synapse-test']['matrix_users'] }}"
+    matrix_rooms: "{{ hostvars['synapse-test']['matrix_rooms'] }}"
+
+    # Admin credentials for initial setup
+    matrix_admin_user: "@admin:{{ matrix_domain }}"
+    matrix_admin_password: "admin_test_password"
+    matrix_admin_token: ""  # Will be generated
+
+  tasks:
+
+    - name: Show configuration summary
+      ansible.builtin.debug:
+        msg:
+          - "Testing apply-config workflow"
+          - "Homeserver: {{ matrix_homeserver_url }}"
+          - "Domain: {{ matrix_domain }}"
+          - "Users to create: {{ matrix_users | length }}"
+          - "Rooms to create: {{ matrix_rooms | length }}"
+
+    # =========================================================
+    # Get admin token for subsequent operations
+    # =========================================================
+
+    - name: Login as admin to get access token
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          identifier:
+            type: "m.id.user"
+            user: "{{ matrix_admin_user }}"
+          password: "{{ matrix_admin_password }}"
+        status_code: 200
+      register: admin_login
+
+    - name: Set admin token fact
+      ansible.builtin.set_fact:
+        matrix_admin_token: "{{ admin_login.json.access_token }}"
+
+    # =========================================================
+    # Users - Apply declarative configuration
+    # =========================================================
+
+    - name: Apply users (declarative)
+      jackaltx.solti_matrix_mgr.synapse_user:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ item.user_id }}:{{ matrix_domain }}"
+        displayname: "{{ item.displayname | default(omit) }}"
+        password: "{{ item.password | default(omit) }}"
+        admin: "{{ item.role == 'admin' }}"
+        user_type: "{{ 'bot' if item.role == 'bot' else omit }}"
+        state: "{{ item.state }}"
+      loop: "{{ matrix_users }}"
+      loop_control:
+        label: "{{ item.user_id }}"
+      no_log: true
+      register: user_results
+
+    - name: Report user creation results
+      ansible.builtin.debug:
+        msg: "Created {{ user_results.results | selectattr('changed') | list | length }} users"
+
+    # =========================================================
+    # Rooms - Create declaratively
+    # =========================================================
+
+    - name: Check if rooms already exist
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/%23{{ item.alias }}%3A{{ matrix_domain }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: [200, 404]
+      register: room_checks
+      loop: "{{ matrix_rooms | selectattr('state', 'equalto', 'present') | list }}"
+      loop_control:
+        label: "{{ item.alias }}"
+
+    - name: Create missing rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/createRoom"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          room_alias_name: "{{ item.item.alias }}"
+          name: "{{ item.item.name }}"
+          topic: "{{ item.item.topic | default(omit) }}"
+          preset: "{{ item.item.preset | default('private_chat') }}"
+        status_code: 200
+      loop: "{{ room_checks.results }}"
+      loop_control:
+        label: "{{ item.item.alias }}"
+      when: item.status == 404
+      register: room_creations
+
+    - name: Resolve room IDs (existing)
+      ansible.builtin.set_fact:
+        room_id_map: >-
+          {{
+            room_id_map | default({}) | combine({
+              item.item.alias: item.json.room_id
+            })
+          }}
+      loop: "{{ room_checks.results }}"
+      loop_control:
+        label: "{{ item.item.alias }}"
+      when: item.status == 200
+
+    - name: Resolve room IDs (newly created)
+      ansible.builtin.set_fact:
+        room_id_map: >-
+          {{
+            room_id_map | default({}) | combine({
+              item.item.item.alias: item.json.room_id
+            })
+          }}
+      loop: "{{ room_creations.results }}"
+      loop_control:
+        label: "{{ item.item.item.alias }}"
+      when: item.changed | default(false)
+
+    - name: Show room ID mapping
+      ansible.builtin.debug:
+        var: room_id_map
+
+    # =========================================================
+    # Rooms - Enable encryption where specified
+    # =========================================================
+
+    - name: Enable encryption on encrypted rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ (room_id_map | default({}))[item.alias] }}/state/m.room.encryption"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          algorithm: "m.megolm.v1.aes-sha2"
+        status_code: [200, 403]  # 403 = already encrypted
+      loop: "{{ matrix_rooms | selectattr('encrypted', 'defined') | selectattr('encrypted') | list }}"
+      loop_control:
+        label: "{{ item.alias }}"
+      when: (room_id_map | default({}))[item.alias] is defined
+
+    # =========================================================
+    # Rooms - Invite members
+    # =========================================================
+
+    - name: Invite members to rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ (room_id_map | default({}))[item.0.alias] }}/invite"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          user_id: "{{ item.1.user_id }}:{{ matrix_domain }}"
+        status_code: [200, 403]  # 403 = already a member
+      loop: "{{ matrix_rooms | subelements('members') }}"
+      loop_control:
+        label: "{{ item.0.alias }}/{{ item.1.user_id }}"
+      when: (room_id_map | default({}))[item.0.alias] is defined
+
+    - name: Configuration applied successfully
+      ansible.builtin.debug:
+        msg:
+          - "✅ Applied declarative configuration"
+          - "Users: {{ matrix_users | length }}"
+          - "Rooms: {{ matrix_rooms | length }}"
+          - "Workflow: inventory → converge (production pattern)"

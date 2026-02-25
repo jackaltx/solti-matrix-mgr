@@ -1,0 +1,168 @@
+---
+# verify.yml - Verify declarative configuration was applied correctly
+
+- name: Verify Matrix Configuration
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    matrix_homeserver_url: "{{ hostvars['synapse-test']['matrix_homeserver_url'] }}"
+    matrix_domain: "{{ hostvars['synapse-test']['matrix_domain'] }}"
+    matrix_users: "{{ hostvars['synapse-test']['matrix_users'] }}"
+    matrix_rooms: "{{ hostvars['synapse-test']['matrix_rooms'] }}"
+    matrix_admin_user: "@admin:{{ matrix_domain }}"
+    matrix_admin_password: "admin_test_password"
+
+  tasks:
+
+    # =========================================================
+    # Get admin token
+    # =========================================================
+
+    - name: Login as admin
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          identifier:
+            type: "m.id.user"
+            user: "{{ matrix_admin_user }}"
+          password: "{{ matrix_admin_password }}"
+        status_code: 200
+      register: admin_login
+
+    - name: Set admin token
+      ansible.builtin.set_fact:
+        matrix_admin_token: "{{ admin_login.json.access_token }}"
+
+    # =========================================================
+    # Verify Users Exist
+    # =========================================================
+
+    - name: Query all users
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+      register: all_users
+
+    - name: Verify expected user count
+      ansible.builtin.assert:
+        that:
+          - all_users.total >= matrix_users | length
+        fail_msg: "Expected at least {{ matrix_users | length }} users, found {{ all_users.total }}"
+        success_msg: "✅ Found {{ all_users.total }} users (expected {{ matrix_users | length }})"
+
+    - name: Verify each user exists
+      ansible.builtin.assert:
+        that:
+          - all_users.users | selectattr('name', 'equalto', item.user_id + ':' + matrix_domain) | list | length == 1
+        fail_msg: "User {{ item.user_id }} not found!"
+        success_msg: "✅ User {{ item.user_id }} exists"
+      loop: "{{ matrix_users }}"
+      loop_control:
+        label: "{{ item.user_id }}"
+
+    # =========================================================
+    # Verify Bot Users Have Correct user_type
+    # =========================================================
+
+    - name: Query bot users
+      jackaltx.solti_matrix_mgr.synapse_user_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_type: bot
+      register: bot_users
+
+    - name: Verify bot user count
+      ansible.builtin.assert:
+        that:
+          - bot_users.total == (matrix_users | selectattr('role', 'equalto', 'bot') | list | length)
+        fail_msg: "Expected {{ matrix_users | selectattr('role', 'equalto', 'bot') | list | length }} bots, found {{ bot_users.total }}"
+        success_msg: "✅ Found {{ bot_users.total }} bot users"
+
+    - name: Verify bot user_type field
+      ansible.builtin.assert:
+        that:
+          - item.user_type == 'bot'
+        fail_msg: "Bot user {{ item.name }} missing user_type field!"
+        success_msg: "✅ Bot {{ item.name }} has user_type=bot"
+      loop: "{{ bot_users.users }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # =========================================================
+    # Verify Rooms Exist
+    # =========================================================
+
+    - name: Check room aliases resolve
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/%23{{ item.alias }}%3A{{ matrix_domain }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: 200
+      loop: "{{ matrix_rooms | selectattr('state', 'equalto', 'present') | list }}"
+      loop_control:
+        label: "{{ item.alias }}"
+      register: room_resolves
+
+    - name: Verify all rooms exist
+      ansible.builtin.assert:
+        that:
+          - room_resolves.results | selectattr('status', 'equalto', 200) | list | length == (matrix_rooms | selectattr('state', 'equalto', 'present') | list | length)
+        fail_msg: "Not all rooms were created!"
+        success_msg: "✅ All {{ matrix_rooms | length }} rooms exist"
+
+    # =========================================================
+    # Verify Encryption Status
+    # =========================================================
+
+    - name: Build room ID map
+      ansible.builtin.set_fact:
+        verify_room_map: >-
+          {{
+            verify_room_map | default({}) | combine({
+              item.item.alias: item.json.room_id
+            })
+          }}
+      loop: "{{ room_resolves.results }}"
+      loop_control:
+        label: "{{ item.item.alias }}"
+
+    - name: Check encryption on encrypted rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ verify_room_map[item.alias] }}/state/m.room.encryption"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: [200, 404]
+      loop: "{{ matrix_rooms | selectattr('encrypted', 'defined') | selectattr('encrypted') | list }}"
+      loop_control:
+        label: "{{ item.alias }}"
+      register: encryption_checks
+
+    - name: Verify encrypted rooms are encrypted
+      ansible.builtin.assert:
+        that:
+          - item.status == 200
+        fail_msg: "Room {{ item.item.alias }} should be encrypted but isn't!"
+        success_msg: "✅ Room {{ item.item.alias }} is encrypted"
+      loop: "{{ encryption_checks.results }}"
+      loop_control:
+        label: "{{ item.item.alias }}"
+
+    # =========================================================
+    # Final Summary
+    # =========================================================
+
+    - name: Verification summary
+      ansible.builtin.debug:
+        msg:
+          - "✅ All verifications passed!"
+          - "Users: {{ all_users.total }}"
+          - "Bots: {{ bot_users.total }}"
+          - "Rooms: {{ matrix_rooms | length }}"
+          - "Encrypted rooms: {{ matrix_rooms | selectattr('encrypted', 'defined') | selectattr('encrypted') | list | length }}"
+          - "Workflow validated: inventory → converge → verify"

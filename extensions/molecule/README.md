@@ -9,7 +9,8 @@ This directory contains Molecule test scenarios for the `solti_matrix_mgr` colle
 | **default** | Local Matrix | Test `matrix_event` module against live Matrix server | `molecule test` |
 | **jack1** | Local Matrix | Test `synapse_room` and `synapse_user` modules with self-healing auth | `molecule test -s jack1` |
 | **user-mgmt** | Local Matrix | Test `synapse_user` with user_type, `synapse_user_info`, and `synapse_room_info` | `molecule test -s user-mgmt` |
-| **e2e** | GitHub Actions | End-to-end integration test with Synapse in Docker | CI only |
+| **e2e** | GitHub Actions | Module primitives integration test with Synapse in Docker | CI only |
+| **apply-config** | GitHub Actions | Declarative workflow test (inventory → converge) | CI only |
 | **self-contained** | Local (mocked) | Test configuration generation without live server | `molecule test -s self-contained` |
 
 ## Scenario Details
@@ -104,6 +105,42 @@ export MATRIX_BOT_SOLTI_LOGGER_PASSWORD="password"
 5. Destroy - Clean up containers
 
 **Artifacts:** Event IDs logged via debug output (check workflow logs)
+
+### apply-config
+
+**Location:** GitHub Actions CI/CD
+**Target:** Synapse in Docker (ephemeral)
+**Tests:**
+- Declarative inventory → apply-config.yml workflow
+- Production pattern validation (mirrors mylab usage)
+- User provisioning from inventory (admin + bots + users)
+- Room creation (public/private/encrypted)
+- Power levels and auto-join
+- Bot user_type classification
+- Idempotency of declarative convergence
+
+**Workflow:** `.github/workflows/apply-config.yml`
+
+**Process:**
+
+1. Create - Spin up Docker network and Synapse container
+2. Prepare - Configure Synapse, register admin user
+3. Converge - Apply declarative config from inventory vars:
+   - Create users (@admin, @deploy-bot, @verify-bot, @ops-user)
+   - Create rooms (deploys, verify, team)
+   - Enable encryption on team room
+   - Invite members and set power levels
+4. Verify:
+   - All users exist
+   - Bot users have user_type=bot
+   - All rooms exist and resolve
+   - Encrypted room is encrypted
+   - Member counts match expected
+5. Destroy - Clean up containers
+
+**Artifacts:** None (all verification via assertions)
+
+**Why:** Tests the production DevOps pipeline used in mylab, not just individual modules
 
 ### self-contained
 
