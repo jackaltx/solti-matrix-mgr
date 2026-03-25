@@ -80,6 +80,16 @@ options:
                 description: Room members to invite
                 type: list
                 elements: dict
+            retention:
+                description: Message retention policy (auto-delete old messages)
+                type: dict
+                suboptions:
+                    max_lifetime_days:
+                        description: Delete messages after N days
+                        type: int
+                    min_lifetime_days:
+                        description: Keep messages at least N days
+                        type: int
     validate_certs:
         description: Validate SSL certificates
         type: bool
@@ -365,6 +375,41 @@ def invite_to_room(module, homeserver_url, access_token, room_id, user_id):
     return info['status']
 
 
+def set_retention_policy(module, homeserver_url, access_token, room_id, retention):
+    """Set m.room.retention state event for auto-expiry of messages"""
+    if not retention:
+        return False
+
+    # Build retention content (convert days to milliseconds)
+    content = {}
+
+    if 'max_lifetime_days' in retention:
+        content['max_lifetime'] = retention['max_lifetime_days'] * 86400000
+
+    if 'min_lifetime_days' in retention:
+        content['min_lifetime'] = retention['min_lifetime_days'] * 86400000
+
+    if not content:
+        return False
+
+    # Set the retention state event
+    url = f"{homeserver_url}/_matrix/client/v3/rooms/{room_id}/state/m.room.retention"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    resp, info = fetch_url(
+        module, url, headers=headers, method="PUT",
+        data=json.dumps(content)
+    )
+
+    if info['status'] not in [200, 201]:
+        module.fail_json(msg=f"Failed to set retention for room {room_id}: {info}")
+
+    return True
+
+
 def get_room_members(module, homeserver_url, access_token, room_id):
     """Get list of room members (both joined and invited)"""
     members = []
@@ -415,6 +460,13 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
         if not room_id:
             return {'alias': room_alias, 'action': 'failed', 'changed': False}
 
+        # Set retention policy if configured
+        retention_set = False
+        if 'retention' in room_config:
+            retention_set = set_retention_policy(
+                module, homeserver_url, access_token, room_id, room_config['retention']
+            )
+
         # Invite members
         members_invited = []
         for member in room_config.get('members', []):
@@ -428,12 +480,16 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
             if status in [200, 403, 429]:
                 members_invited.append(user_id_short)
 
-        return {
+        result = {
             'alias': room_alias,
             'action': 'created',
             'members_invited': members_invited,
             'changed': True
         }
+        if retention_set:
+            result['retention_set'] = True
+
+        return result
 
     # Room exists - check members
     current_members = get_room_members(module, homeserver_url, access_token, room_id)
