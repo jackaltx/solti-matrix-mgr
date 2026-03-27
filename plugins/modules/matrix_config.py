@@ -296,6 +296,40 @@ def ensure_user(module, homeserver_url, access_token, domain, user_config):
     return {'user': user_id, 'action': 'unchanged', 'changed': False}
 
 
+def generate_user_token(module, homeserver_url, user_id, password):
+    """
+    Generate access token for user via password login
+    Returns token string or None if login fails
+    """
+    url = f"{homeserver_url}/_matrix/client/v3/login"
+    headers = {"Content-Type": "application/json"}
+
+    body = {
+        "type": "m.login.password",
+        "identifier": {
+            "type": "m.id.user",
+            "user": user_id
+        },
+        "password": password
+    }
+
+    resp, info = fetch_url(
+        module, url, headers=headers, method="POST",
+        data=json.dumps(body)
+    )
+
+    if info['status'] not in [200, 201]:
+        # Login failed - don't fail the module, just return None
+        return None
+
+    try:
+        response_body = resp.read()
+        data = json.loads(response_body)
+        return data.get('access_token')
+    except (ValueError, KeyError):
+        return None
+
+
 def query_room(module, homeserver_url, access_token, room_alias):
     """Query if room exists"""
     # URL encode the room alias
@@ -562,11 +596,23 @@ def run_module():
     changed = False
 
     # Process users
+    user_tokens = {}
     for user_config in users_config:
         result = ensure_user(module, homeserver_url, access_token, domain, user_config)
         user_results.append(result)
         if result['changed']:
             changed = True
+
+        # Generate token for users with passwords (bot users typically)
+        if user_config.get('password'):
+            user_id_short = user_config['user_id']
+            if not user_id_short.startswith('@'):
+                user_id_short = f"@{user_id_short}"
+            user_id = f"{user_id_short}:{domain}"
+
+            token = generate_user_token(module, homeserver_url, user_id, user_config['password'])
+            if token:
+                user_tokens[user_id] = token
 
     # Process rooms
     for room_config in rooms_config:
@@ -589,7 +635,8 @@ def run_module():
         changed=changed,
         users=user_results,
         rooms=room_results,
-        summary=summary
+        summary=summary,
+        tokens=user_tokens
     )
 
 
