@@ -31,11 +31,11 @@ All credentials live in `~/.secrets/LabMatrix`:
 ```bash
 # Bot user (@solti-logger) - for posting events
 export MATRIX_ACCESS_TOKEN="syt_c29sdGktbG9nZ2Vy_..."
-export MATRIX_HOMESERVER_URL="https://matrix-web.jackaltx.com"
-export MATRIX_ROOM_ID="#solti-verify:jackaltx.com"
+export MATRIX_HOMESERVER_URL="https://matrix.example.com"
+export MATRIX_ROOM_ID="#solti-verify:example.com"
 
 # Admin user - for Synapse Admin API
-export MATRIX_ADMIN_USER="@admin:jackaltx.com"
+export MATRIX_ADMIN_USER="@admin:example.com"
 export MATRIX_ADMIN_PASSWORD="..."
 export MATRIX_ADMIN_TOKEN="syt_YWRtaW4_..."
 ```
@@ -66,7 +66,7 @@ Use the `synapse_device_info` module to list active tokens:
   jackaltx.solti_matrix_mgr.synapse_device_info:
     homeserver_url: "{{ matrix_homeserver_url }}"
     access_token: "{{ matrix_admin_token }}"
-    user_id: "@admin:jackaltx.com"
+    user_id: "@admin:example.com"
   register: devices
 ```
 

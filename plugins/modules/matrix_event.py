@@ -82,17 +82,17 @@ EXAMPLES = r'''
 # 2. Post the event using the content parameter
 - name: Post verification event
   jackaltx.solti_matrix_mgr.matrix_event:
-    homeserver_url: "https://matrix-web.jackaltx.com"
+    homeserver_url: "https://matrix.example.com"
     access_token: "{{ bot_token }}"
-    room_id: "#solti-verify:jackaltx.com"
+    room_id: "#solti-verify:example.com"
     content: "{{ verify_content }}"
 
 # Example of a simple, non-SOLTI event
 - name: Post simple message
   jackaltx.solti_matrix_mgr.matrix_event:
-    homeserver_url: "https://matrix-web.jackaltx.com"
+    homeserver_url: "https://matrix.example.com"
     access_token: "{{ bot_token }}"
-    room_id: "#solti-ops:jackaltx.com"
+    room_id: "#solti-ops:example.com"
     content:
       msgtype: "m.text"
       body: "Deployment started on host {{ ansible_hostname }} by {{ ansible_user_id }}"
@@ -103,12 +103,12 @@ event_id:
     description: Matrix event ID of the posted event
     returned: success
     type: str
-    sample: "$abc123def456:jackaltx.com"
+    sample: "$abc123def456:example.com"
 room_id:
     description: Room ID where event was posted
     returned: success
     type: str
-    sample: "!NGwlzxqbkdXnRGKvEF:jackaltx.com"
+    sample: "!NGwlzxqbkdXnRGKvEF:example.com"
 transaction_id:
     description: Transaction ID used for the request
     returned: success

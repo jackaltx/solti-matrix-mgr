@@ -29,7 +29,7 @@ options:
         type: str
         no_log: true
     domain:
-        description: Matrix domain (e.g., jackaltx.com)
+        description: Matrix domain (e.g., example.com)
         required: true
         type: str
     users:
@@ -109,7 +109,7 @@ EXAMPLES = r'''
         displayname: "Admin"
         password: "{{ admin_pass }}"
         admin: true
-      - user_id: "@jackal"
+      - user_id: "@alice"
         displayname: "Jackal"
         password: "{{ jackal_pass }}"
     rooms:
@@ -117,7 +117,7 @@ EXAMPLES = r'''
         name: "Team Chat"
         encrypted: true
         members:
-          - user_id: "@jackal"
+          - user_id: "@alice"
             power_level: 100
   register: result
 
@@ -138,7 +138,7 @@ users:
     sample:
         - user: "@admin:example.com"
           action: created
-        - user: "@jackal:example.com"
+        - user: "@alice:example.com"
           action: unchanged
 rooms:
     description: Room operation results
@@ -148,7 +148,7 @@ rooms:
     sample:
         - alias: "#team:example.com"
           action: created
-          members_invited: ["@jackal"]
+          members_invited: ["@alice"]
 summary:
     description: Summary of changes
     type: dict

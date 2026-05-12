@@ -30,7 +30,7 @@ provisioner:
         matrix_admin_token: "{{ lookup('env', 'MATRIX_ADMIN_TOKEN') }}"
 
         # Credentials for self-healing tests
-        matrix_bot_user: "@solti-logger:jackaltx.com"
+        matrix_bot_user: "@solti-logger:example.com"
         matrix_bot_password: "{{ lookup('env', 'MATRIX_BOT_SOLTI_LOGGER_PASSWORD') }}"
 
 scenario:

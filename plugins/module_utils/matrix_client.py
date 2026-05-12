@@ -261,7 +261,7 @@ class MatrixClientAPI:
         API: GET /_matrix/client/v3/directory/room/{room_alias}
 
         Args:
-            room_alias: Room alias (e.g., '#solti-verify:jackaltx.com')
+            room_alias: Room alias (e.g., '#solti-verify:example.com')
 
         Returns:
             dict with status_code, body (contains room_id on success)

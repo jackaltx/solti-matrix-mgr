@@ -50,7 +50,7 @@
         access_token: "{{ matrix_admin_token }}"
         admin_user: "{{ matrix_admin_user }}"
         admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
-        room_id: "#disposable-test-room:jackaltx.com"
+        room_id: "#disposable-test-room:example.com"
         state: absent
         purge: true
       register: disposable_delete
@@ -67,7 +67,7 @@
         # Bot credentials for self-healing creation
         admin_user: "{{ matrix_bot_user }}"
         admin_password: "{{ matrix_bot_password }}"
-        room_id: "#disposable-test-room:jackaltx.com"
+        room_id: "#disposable-test-room:example.com"
         state: present
         room_name: "Disposable Test Room"
         room_alias_name: "disposable-test-room"
@@ -102,7 +102,7 @@
         access_token: "{{ matrix_admin_token }}"
         admin_user: "{{ matrix_admin_user }}"
         admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
-        room_id: "#disposable-test-room:jackaltx.com"
+        room_id: "#disposable-test-room:example.com"
         state: info
       register: disposable_info
 
@@ -116,7 +116,7 @@
         access_token: "{{ matrix_admin_token }}"
         admin_user: "{{ matrix_admin_user }}"
         admin_password: "{{ lookup('env', 'MATRIX_ADMIN_PASSWORD') }}"
-        room_id: "#disposable-test-room:jackaltx.com"
+        room_id: "#disposable-test-room:example.com"
         state: members
       register: disposable_members
 

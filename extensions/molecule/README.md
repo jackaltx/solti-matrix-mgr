@@ -26,10 +26,10 @@ This directory contains Molecule test scenarios for the `solti_matrix_mgr` colle
 
 **Requirements:**
 ```bash
-export MATRIX_HOMESERVER_URL="https://matrix-web.jackaltx.com"
-export MATRIX_ROOM_ID="#solti-verify:jackaltx.com"
+export MATRIX_HOMESERVER_URL="https://matrix.example.com"
+export MATRIX_ROOM_ID="#solti-verify:example.com"
 export MATRIX_SOLTI_LOGGER_TOKEN="syt_..."
-export MATRIX_ADMIN_USER="@admin:jackaltx.com"
+export MATRIX_ADMIN_USER="@admin:example.com"
 export MATRIX_ADMIN_TOKEN="syt_..."
 export MATRIX_BOT_SOLTI_LOGGER_PASSWORD="password"
 ```
@@ -198,10 +198,10 @@ Artifacts are **automatically cleaned up** after test completion (unless using `
 
 | Variable | Description | Example |
 | --- | --- | --- |
-| `MATRIX_HOMESERVER_URL` | Matrix homeserver URL | `https://matrix-web.jackaltx.com` |
-| `MATRIX_ROOM_ID` | Test room ID or alias | `#solti-verify:jackaltx.com` |
+| `MATRIX_HOMESERVER_URL` | Matrix homeserver URL | `https://matrix.example.com` |
+| `MATRIX_ROOM_ID` | Test room ID or alias | `#solti-verify:example.com` |
 | `MATRIX_SOLTI_LOGGER_TOKEN` | Bot access token | `syt_...` |
-| `MATRIX_ADMIN_USER` | Admin user MXID | `@admin:jackaltx.com` |
+| `MATRIX_ADMIN_USER` | Admin user MXID | `@admin:example.com` |
 | `MATRIX_ADMIN_TOKEN` | Admin access token | `syt_...` |
 | `MATRIX_BOT_SOLTI_LOGGER_PASSWORD` | Bot password | `password` |
 

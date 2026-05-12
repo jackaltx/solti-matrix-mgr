@@ -116,31 +116,31 @@ author:
 EXAMPLES = r'''
 - name: Create room with bot as admin and human moderator
   jackaltx.solti_matrix_mgr.synapse_room:
-    homeserver_url: "https://matrix-web.jackaltx.com"
+    homeserver_url: "https://matrix.example.com"
     access_token: "{{ bot_token }}"
-    room_id: "#solti-deploys:jackaltx.com"
+    room_id: "#solti-deploys:example.com"
     room_name: "SOLTI Deployment Events"
     room_alias_name: "solti-deploys"
     topic: "Automated deployment notifications"
     state: present
     admins:
-      - "@solti-logger:jackaltx.com"
+      - "@solti-logger:example.com"
     moderators:
-      - "@jackal:jackaltx.com"
+      - "@user:example.com"
   register: room_result
 
 - name: Create room with raw power level override
   jackaltx.solti_matrix_mgr.synapse_room:
-    homeserver_url: "https://matrix-web.jackaltx.com"
+    homeserver_url: "https://matrix.example.com"
     access_token: "{{ bot_token }}"
-    room_id: "#custom-room:jackaltx.com"
+    room_id: "#custom-room:example.com"
     room_name: "Custom Power Levels"
     room_alias_name: "custom-room"
     state: present
     power_level_content_override:
       users:
-        "@solti-logger:jackaltx.com": 100
-        "@jackal:jackaltx.com": 75
+        "@solti-logger:example.com": 100
+        "@user:example.com": 75
       users_default: 0
       events_default: 10
 
