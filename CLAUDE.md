@@ -6,6 +6,12 @@ See [STATUS_20260512.md](STATUS_20260512.md) for the full live-vs-dead analysis.
 
 ## What This Collection Does
 
+> **Surfacing to unified docs:** Update `solti-docs.yml` at the collection root
+> to declare which files and CLAUDE.md sections should appear on solti.jackaltx.com.
+> Local `docs/` detail stays local — only declare what matters to the suite-wide audience.
+> See [solti-docs/HARVEST.md](https://github.com/jackaltx/solti-docs/blob/main/HARVEST.md).
+
+
 Two distinct jobs:
 
 1. **Provisioning** — declaratively create/update users and rooms via `matrix_config`
