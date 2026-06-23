@@ -1,0 +1,118 @@
+---
+# apply-config scenario - Test declarative inventory → apply-config.yml workflow
+# Based on real mylab production pattern
+
+dependency:
+  name: galaxy
+
+driver:
+  name: default
+
+platforms:
+  - name: synapse-test
+    groups:
+      - matrix_svc
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: create.yml
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+    destroy: destroy.yml
+  inventory:
+    group_vars:
+      all:
+        ansible_connection: local
+
+      # Matrix service group - mirrors mylab inventory pattern
+      matrix_svc:
+        matrix_domain: "matrix.test"
+        matrix_homeserver_url: "http://localhost:8008"
+
+        # Users - declarative infrastructure as code
+        matrix_users:
+          # Admin account
+          - user_id: "@admin"
+            displayname: "Admin"
+            role: admin
+            password: "admin_test_password"
+            state: present
+
+          # Bot accounts for automation
+          - user_id: "@deploy-bot"
+            displayname: "Deployment Bot"
+            role: bot
+            password: "deploy_bot_password"
+            state: present
+
+          - user_id: "@verify-bot"
+            displayname: "Verification Bot"
+            role: bot
+            password: "verify_bot_password"
+            state: present
+
+          # Human user
+          - user_id: "@ops-user"
+            displayname: "Operations User"
+            role: user
+            password: "ops_user_password"
+            state: present
+
+        # Rooms - declarative configuration
+        matrix_rooms:
+          # Public deployment notifications
+          - alias: "deploys"
+            name: "Deployment Notifications"
+            topic: "CI/CD deployment results"
+            preset: "public_chat"
+            state: present
+            members:
+              - user_id: "@deploy-bot"
+                power_level: 50
+                auto_join: true
+              - user_id: "@ops-user"
+                power_level: 100
+                auto_join: true
+
+          # Private verification room
+          - alias: "verify"
+            name: "Verification Results"
+            topic: "Automated test results from Molecule/CI"
+            preset: "private_chat"
+            state: present
+            members:
+              - user_id: "@verify-bot"
+                power_level: 50
+                auto_join: true
+              - user_id: "@ops-user"
+                power_level: 100
+                auto_join: true
+
+          # Encrypted ops room
+          - alias: "team"
+            name: "Team Operations"
+            topic: "Secure team communications"
+            preset: "private_chat"
+            encrypted: true
+            state: present
+            members:
+              - user_id: "@admin"
+                power_level: 100
+                auto_join: true
+              - user_id: "@ops-user"
+                power_level: 100
+                auto_join: true
+
+scenario:
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy
+
+verifier:
+  name: ansible

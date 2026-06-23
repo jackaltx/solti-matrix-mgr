@@ -8,7 +8,8 @@
 # HOMESERVER CONNECTION
 # =============================================================================
 
-matrix_domain: "example.com"
+domain: "{{ lookup('env', 'LAB_TLD') | default('example.com', true) }}"
+matrix_domain: "{{ lookup('env', 'MATRIX_DOMAIN') | default(domain, true) }}"
 synapse_homeserver_url: "https://matrix.{{ matrix_domain }}"
 # synapse_admin_token: "{{ vault_synapse_admin_token }}"  # From vault.yml
 

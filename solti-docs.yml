@@ -1,0 +1,22 @@
+---
+title: "Matrix Manager"
+section: "Matrix"
+subsection: "Admin"
+nav_order: 1
+description: "Matrix Synapse administration — room management, token handling, user ops"
+
+sources:
+  - file: CLAUDE.md
+    sections:
+      - "What This Collection Does"
+      - "Live Modules"
+      - "Key Architecture"
+      - "How Playbooks Are Run"
+  - file: docs/token-management.md
+    title: "Token Management"
+  - file: docs/playbook-examples.md
+    title: "Playbook Examples"
+  - file: docs/event-schemas.md
+    title: "Event Schemas"
+  - file: galaxy.yml
+    type: metadata

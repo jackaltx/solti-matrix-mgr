@@ -9,7 +9,7 @@ SOLTI events use a layered approach separating transport (Matrix) from payload (
 ```yaml
 # Matrix Transport Layer
 event_type: m.room.message
-room_id: #solti-verify:jackaltx.com
+room_id: #solti-verify:example.com
 
 # Event Content (Matrix stores this)
 content:
@@ -232,9 +232,9 @@ Events should be posted to appropriate Matrix rooms based on category:
 
 | Room | Purpose | Schemas |
 |------|---------|---------|
-| `#solti-verify:jackaltx.com` | Verification test results | `verify.pass.v1`, `verify.fail.v1` |
-| `#solti-deploys:jackaltx.com` | Deployment events (future) | `deploy.start.v1`, `deploy.complete.v1` |
-| `#solti-ops:jackaltx.com` | Operations discussion (future) | Human chat only |
+| `#solti-verify:example.com` | Verification test results | `verify.pass.v1`, `verify.fail.v1` |
+| `#solti-deploys:example.com` | Deployment events (future) | `deploy.start.v1`, `deploy.complete.v1` |
+| `#solti-ops:example.com` | Operations discussion (future) | Human chat only |
 
 ---
 

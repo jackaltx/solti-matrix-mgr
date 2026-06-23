@@ -44,6 +44,10 @@
       delay: 5
       delegate_to: localhost
 
+    - name: Extract admin password from inventory
+      ansible.builtin.set_fact:
+        admin_password: "{{ hostvars[inventory_hostname].matrix_users | selectattr('role', 'equalto', 'admin') | map(attribute='password') | first }}"
+
     - name: Register admin user
       ansible.builtin.command:
         cmd: >
@@ -51,7 +55,7 @@
           register_new_matrix_user
           -c /data/homeserver.yaml
           -u admin
-          -p {{ matrix_admin_password }}
+          -p {{ admin_password }}
           --admin
           http://localhost:8008
       delegate_to: localhost

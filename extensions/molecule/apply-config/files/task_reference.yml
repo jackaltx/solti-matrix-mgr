@@ -1,0 +1,84 @@
+---
+# tasks/main.yml for synapse_config role
+# Manages Synapse homeserver configuration via file overlays
+
+- name: Ensure config directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0750'
+  loop:
+    - "{{ synapse_config_dir }}"
+    - "{{ synapse_config_d_dir }}"
+    - "{{ synapse_appservice_dir }}"
+
+- name: Deploy configuration overlays
+  ansible.builtin.copy:
+    content: "{{ item.value | to_nice_yaml }}"
+    dest: "{{ synapse_config_d_dir }}/{{ item.key }}.yaml"
+    mode: '0640'
+  loop: "{{ synapse_config_overlays | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}.yaml"
+  notify: Restart Synapse
+  when: synapse_config_overlays | length > 0
+
+- name: Check for removed overlay files
+  ansible.builtin.find:
+    paths: "{{ synapse_config_d_dir }}"
+    patterns: "*.yaml"
+  register: existing_overlays
+
+- name: Remove stale overlay files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ existing_overlays.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename | splitext | first) not in (synapse_config_overlays.keys() | list)
+  notify: Restart Synapse
+
+- name: Deploy appservice registrations
+  ansible.builtin.copy:
+    src: "{{ item.registration_file }}"
+    dest: "{{ synapse_appservice_dir }}/{{ item.name }}.yaml"
+    mode: '0640'
+  loop: "{{ synapse_appservices }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart Synapse
+  when: synapse_appservices | length > 0
+
+- name: Ensure appservices are listed in homeserver.yaml
+  ansible.builtin.lineinfile:
+    path: "{{ synapse_homeserver_yaml }}"
+    regexp: '^app_service_config_files:'
+    line: "app_service_config_files:"
+    state: present
+  when: synapse_appservices | length > 0
+  notify: Restart Synapse
+
+- name: Add appservice entries to homeserver.yaml
+  ansible.builtin.lineinfile:
+    path: "{{ synapse_homeserver_yaml }}"
+    insertafter: '^app_service_config_files:'
+    line: "  - {{ synapse_appservice_dir }}/{{ item.name }}.yaml"
+    state: present
+  loop: "{{ synapse_appservices }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: synapse_appservices | length > 0
+  notify: Restart Synapse
+
+- name: Validate Synapse configuration
+  ansible.builtin.command:
+    cmd: "python3 -m synapse.config -c {{ synapse_homeserver_yaml }} --config-directory {{ synapse_config_d_dir }}"
+  changed_when: false
+  failed_when: false
+  register: config_validation
+
+- name: Warn on configuration errors
+  ansible.builtin.debug:
+    msg: "Configuration validation warning: {{ config_validation.stderr }}"
+  when: config_validation.rc != 0

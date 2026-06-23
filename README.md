@@ -66,8 +66,30 @@ Always provide `user_id` and `password` alongside the `access_token`. The module
 
 ## Admin Modules
 
+### `matrix_config` (Declarative Overlay)
+
+Apply users and rooms from configuration overlays. Idempotent, additive-only design that never deletes resources.
+
+```yaml
+- name: Apply Matrix configuration
+  jackaltx.solti_matrix_mgr.matrix_config:
+    homeserver_url: "{{ hs_url }}"
+    access_token: "{{ admin_token }}"
+    domain: "example.com"
+    users:
+      - user_id: "@admin"
+        displayname: "Admin"
+        admin: true
+    rooms:
+      - alias: "ops"
+        name: "Operations"
+        members: ["@admin"]
+```
+
 ### `synapse_user`
-Manage user accounts and bot identities.
+
+Create, update, or deactivate user accounts and bot identities.
+
 ```yaml
 - name: Ensure bot user exists with no rate limits
   jackaltx.solti_matrix_mgr.synapse_user:
@@ -81,8 +103,48 @@ Manage user accounts and bot identities.
     state: present
 ```
 
+### `synapse_user_info`
+
+Query users with filtering (bot, admin, deactivated status).
+
+```yaml
+- name: List all bot users
+  jackaltx.solti_matrix_mgr.synapse_user_info:
+    homeserver_url: "{{ hs_url }}"
+    access_token: "{{ admin_token }}"
+    user_type: bot
+```
+
+### `synapse_room`
+
+Create and manage rooms via Admin API.
+
+```yaml
+- name: Create new room
+  jackaltx.solti_matrix_mgr.synapse_room:
+    homeserver_url: "{{ hs_url }}"
+    access_token: "{{ admin_token }}"
+    name: "Test Room"
+    room_alias_name: "test-room"
+    state: present
+```
+
+### `synapse_room_info`
+
+Query rooms by ID, alias, or search term.
+
+```yaml
+- name: Get room by alias
+  jackaltx.solti_matrix_mgr.synapse_room_info:
+    homeserver_url: "{{ hs_url }}"
+    access_token: "{{ admin_token }}"
+    room_alias: "test-room"
+```
+
 ### `synapse_device_info` (Audit & Cleanup)
+
 Audit and manage user devices/tokens. Crucial for managing bot sessions across distributed nodes.
+
 ```yaml
 - name: Cleanup old ansible tokens (>30 days)
   jackaltx.solti_matrix_mgr.synapse_device_info:
@@ -94,26 +156,62 @@ Audit and manage user devices/tokens. Crucial for managing bot sessions across d
     revoke_matched: true
 ```
 
+### `synapse_info`
+
+Gather homeserver facts and statistics.
+
+```yaml
+- name: Get server info
+  jackaltx.solti_matrix_mgr.synapse_info:
+    homeserver_url: "{{ hs_url }}"
+    access_token: "{{ admin_token }}"
+```
+
+---
+
+## Roles
+
+### `synapse_config`
+
+Deploy homeserver.yaml overlays and appservice registrations to Synapse.
+
+### `synapse_user` (Role)
+
+Declarative user account management from inventory.
+
+### `hookshot_webhook`
+
+Configure matrix-hookshot webhooks for external integrations.
+
 ---
 
 ## Architecture & Integration
 
 ### For ref.tools Operators
-This collection acts as the **Data Plane**. Orchestrators (like `mylab`) should provide the credentials, while this collection ensures the delivery of the data.
+
+This collection acts as the **Data Plane**. Orchestrators (like `mylab`) should provide the
+credentials, while this collection ensures the delivery of the data.
 
 1. **Inventory Driven**: Define users and rooms in your inventory.
-2. **Ephemeral Admins**: Use the `matrix-playbook.sh` wrapper (in `mylab/bin`) to generate short-lived admin tokens for maintenance.
-3. **Persistent Bots**: Use the self-healing `matrix_event` module for long-running service notifications.
+2. **Ephemeral Admins**: Use the `matrix-playbook.sh` wrapper (in `mylab/bin`) to generate
+   short-lived admin tokens for maintenance.
+3. **Persistent Bots**: Use the self-healing `matrix_event` module for long-running service
+   notifications.
 
 ### Proxmox & Docker Support
-Optimized for layered configuration on Proxmox LXC (via `conf.d` overlays) and `matrix-docker-ansible-deploy` environments.
+
+Optimized for layered configuration on Proxmox LXC (via `conf.d` overlays) and
+`matrix-docker-ansible-deploy` environments.
 
 ---
 
 ## Documentation
-- **[Token Management Guide](docs/token-management.md)** - Ephemeral vs Persistent strategies.
-- **[Event Schemas](docs/event-schemas.md)** - Defining structured payloads for automated processing.
-- **[Self-Healing Design](GEMINI.md)** - Technical details on the caching and recovery logic.
+
+- **[Complete Module Reference](docs/README.md)** - Full index with architecture diagrams
+- **[Token Management Guide](docs/token-management.md)** - Ephemeral vs Persistent strategies
+- **[Playbook Examples](docs/playbook-examples.md)** - Common patterns and workflows
+- **[Event Schemas](docs/event-schemas.md)** - Defining structured payloads for automated processing
+- **[Self-Healing Design](GEMINI.md)** - Technical details on the caching and recovery logic
 
 ## License
 MIT

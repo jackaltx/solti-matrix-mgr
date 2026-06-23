@@ -1,0 +1,16 @@
+---
+- name: Create
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create ephemeral data directory
+      ansible.builtin.file:
+        path: "{{ molecule_ephemeral_directory }}/synapse_data"
+        state: directory
+        mode: '0777'
+
+    - name: Create docker network
+      ansible.builtin.command:
+        cmd: "docker network create matrix-net"
+      failed_when: false
+      changed_when: true

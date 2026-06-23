@@ -1,5 +1,5 @@
 ---
-name: End-to-End Integration Test
+name: Apply-Config Workflow Test
 
 "on":
   push:
@@ -9,8 +9,8 @@ name: End-to-End Integration Test
   workflow_dispatch:
 
 jobs:
-  e2e:
-    name: E2E Matrix Test (Synapse in Docker)
+  apply-config:
+    name: Apply-Config Test (Declarative Workflow)
     runs-on: ubuntu-latest
 
     steps:
@@ -29,13 +29,16 @@ jobs:
           ansible-galaxy collection build
           ansible-galaxy collection install jackaltx-solti_matrix_mgr-*.tar.gz
 
-      - name: Run E2E Molecule Test
+      - name: Run Apply-Config Molecule Test
         run: |
-          molecule test -s e2e
+          molecule test -s apply-config
         env:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_PROJECT_DIRECTORY: ${{ github.workspace }}
 
-      # Event ID is now logged via debug output in verify phase
-      # Check workflow logs for "E2E Test Event ID" message
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "✅ Apply-config workflow test completed"
+          echo "Tested: inventory → converge → verify (production pattern)"
