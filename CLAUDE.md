@@ -20,6 +20,37 @@ Two distinct jobs:
 The orchestrator (`mylab`) drives both. This collection is a pure library — no site
 credentials, no domain-specific logic.
 
+## Docs
+
+- [`docs/event-schemas.md`](docs/event-schemas.md) — Structured event schema definitions (verify.pass.v1, verify.fail.v1, planned deploy.*)
+- [`docs/token-management.md`](docs/token-management.md) — Admin token lifecycle, auditing, single-use workflow
+- [`docs/playbook-examples.md`](docs/playbook-examples.md) — Working playbook patterns
+- [`docs/README.md`](docs/README.md) — Docs index
+
+### Event Schema System
+
+SOLTI events use a layered schema: Matrix transport carries a human-readable `body` for Element
+rendering plus a machine-readable `solti:` block with `schema`, `timestamp`, `source`, and `data`.
+
+```yaml
+content:
+  msgtype: m.text
+  body: "✅ Verification PASSED: 5/5 services on rocky9_9.0"
+  solti:
+    schema: "verify.pass.v1"
+    timestamp: "2026-02-11T15:30:45Z"
+    source: "molecule/rocky9/podman"
+    data:
+      distribution: "rocky9_9.0"
+      services: { alloy: true, loki: true, ... }
+```
+
+Live schemas: `verify.pass.v1`, `verify.fail.v1`. Planned: `deploy.start.v1`, `deploy.complete.v1`.
+
+Room routing: `#solti-verify` for verification, `#solti-deploys` for deployments (planned).
+
+Decoder: `matrix-view-events.py` dispatches on `content.solti.schema` for rich CLI display.
+
 ## Live Modules (the ones that matter)
 
 | Module | Purpose |
