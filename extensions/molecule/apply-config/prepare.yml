@@ -7,10 +7,10 @@
     - name: Generate Synapse config (using container as generator)
       ansible.builtin.command:
         cmd: >
-          docker run --rm 
-          -v {{ molecule_ephemeral_directory }}/synapse_data:/data 
-          -e SYNAPSE_SERVER_NAME=matrix.test 
-          -e SYNAPSE_REPORT_STATS=no 
+          docker run --rm
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data
+          -e SYNAPSE_SERVER_NAME=matrix.test
+          -e SYNAPSE_REPORT_STATS=no
           matrixdotorg/synapse:latest generate
       delegate_to: localhost
       changed_when: true
@@ -25,11 +25,11 @@
     - name: Start synapse process in container
       ansible.builtin.command:
         cmd: >
-          docker run -d 
-          --name {{ inventory_hostname }} 
+          docker run -d
+          --name {{ inventory_hostname }}
           --network matrix-net
-          -p 8008:8008 
-          -v {{ molecule_ephemeral_directory }}/synapse_data:/data 
+          -p 8008:8008
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data
           matrixdotorg/synapse:latest
       delegate_to: localhost
       changed_when: true

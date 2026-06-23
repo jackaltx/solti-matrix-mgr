@@ -1,3 +1,4 @@
+---
 server_name: "matrix.test"
 report_stats: false
 database:

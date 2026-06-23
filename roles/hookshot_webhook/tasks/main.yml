@@ -26,7 +26,10 @@
 
 - name: Generate webhook secrets
   ansible.builtin.set_fact:
-    webhook_secrets: "{{ webhook_secrets | default({}) | combine({item.name: lookup('password', '/dev/null chars=ascii_lowercase,digits length=' + (hookshot_webhook_secret_length | string))}) }}"
+    webhook_secrets: >-
+      {{ webhook_secrets | default({}) | combine({item.name:
+      lookup('password', '/dev/null chars=ascii_lowercase,digits length='
+      + (hookshot_webhook_secret_length | string))}) }}
   loop: "{{ hookshot_webhooks }}"
   loop_control:
     label: "{{ item.name }}"

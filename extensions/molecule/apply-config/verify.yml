@@ -111,7 +111,9 @@
     - name: Verify all rooms exist
       ansible.builtin.assert:
         that:
-          - room_resolves.results | selectattr('status', 'equalto', 200) | list | length == (matrix_rooms | selectattr('state', 'equalto', 'present') | list | length)
+          - >-
+            room_resolves.results | selectattr('status', 'equalto', 200) | list | length ==
+            (matrix_rooms | selectattr('state', 'equalto', 'present') | list | length)
         fail_msg: "Not all rooms were created!"
         success_msg: "✅ All {{ matrix_rooms | length }} rooms exist"
 

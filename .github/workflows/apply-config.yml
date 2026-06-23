@@ -1,7 +1,7 @@
 ---
 name: Apply-Config Workflow Test
 
-on:
+"on":
   push:
     branches: [main, test]
   pull_request:

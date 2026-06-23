@@ -92,7 +92,7 @@
             type: "m.id.user"
             user: "{{ matrix_admin_user }}"
           password: "{{ matrix_admin_password }}"
-        return_content: yes
+        return_content: true
       register: admin_login
 
     - name: Query all bot users

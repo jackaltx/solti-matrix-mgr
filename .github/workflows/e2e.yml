@@ -1,7 +1,7 @@
 ---
 name: End-to-End Integration Test
 
-on:
+"on":
   push:
     branches: [main, test]
   pull_request:
