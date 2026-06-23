@@ -110,6 +110,7 @@
         label: "{{ item.item.alias }}"
       when: item.status == 404
       register: room_creations
+      changed_when: true
 
     - name: Resolve room IDs (existing)
       ansible.builtin.set_fact:
@@ -135,7 +136,7 @@
       loop: "{{ room_creations.results }}"
       loop_control:
         label: "{{ item.item.item.alias }}"
-      when: item.changed | default(false)
+      when: item.status | default(0) == 200
 
     - name: Show room ID mapping
       ansible.builtin.debug:
