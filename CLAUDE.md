@@ -11,7 +11,6 @@ See [STATUS_20260512.md](STATUS_20260512.md) for the full live-vs-dead analysis.
 > Local `docs/` detail stays local — only declare what matters to the suite-wide audience.
 > See [solti-docs/HARVEST.md](https://github.com/jackaltx/solti-docs/blob/main/HARVEST.md).
 
-
 Two distinct jobs:
 
 1. **Provisioning** — declaratively create/update users and rooms via `matrix_config`
