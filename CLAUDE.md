@@ -161,6 +161,33 @@ Scenarios live in **`extensions/molecule/`** (not a top-level `molecule/` dir):
 - `inventory/group_vars/all.yml` — gitignored, site-specific values
 - `inventory/group_vars/vault.yml.example` — template for secrets structure
 
+## Architecture Direction — Runtime Provisioning for Agent Delegation
+
+Currently this collection is Ansible-only: playbooks call `matrix_config` and `matrix_event`
+from the controller at deploy/config time. The intended future role is as the **provisioning
+backend for the delegator/sub-agent pattern** in `solti-matrix-bots`.
+
+When salty-bot (or any delegator) needs to spin up a per-room card-capture instance, it must
+provision the room and user **at runtime** — not from an Ansible playbook. That means the
+`matrix_config` logic needs to be callable from a running Python bot, not just from the
+Ansible control plane.
+
+**The gap:** `matrix_config` and `matrix_event` are Ansible modules (Python files that
+Ansible serializes and executes remotely). The Matrix Admin API calls inside them are plain
+`requests` — there is no fundamental reason they can't be extracted into a standalone
+Python library callable directly by bot code.
+
+**Likely path:**
+
+1. Extract the core provisioning logic from `plugins/modules/matrix_config.py` into a
+   `solti_matrix` Python package (pip-installable or vendored into the bot venv)
+2. salty-bot imports it, calls `provision_room(alias, members)` at session-start time
+3. `matrix_event`'s self-healing auth already works as a pattern — reuse it in the library
+
+This is a **future sprint** item. Current Ansible-only usage is correct for now.
+The `matrix_config` module is the right abstraction to build on — do not bypass it
+with raw Admin API calls in bot code, as that would duplicate logic that belongs here.
+
 ## Claude's Role
 
 - Adding new Matrix config playbooks in `mylab/playbooks/matrix/` — follow the
