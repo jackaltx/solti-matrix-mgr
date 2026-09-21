@@ -1,14 +1,17 @@
 ---
 # List all rooms on the Matrix homeserver via Synapse Admin API
 #
-# Credentials fetched from HashiVault — no wrapper script needed.
+# Fetches admin credentials from HashiVault — no wrapper script needed.
 # Prereq: source ~/.secrets/LabProvision (sets VAULT_ADDR + VAULT_TOKEN)
 #
 # Usage:
 #   source ~/.secrets/LabProvision
 #   ansible-playbook playbooks/admin/list-rooms.yml
 #   ansible-playbook playbooks/admin/list-rooms.yml -e room_limit_override=50
-#   ansible-playbook playbooks/admin/list-rooms.yml -e matrix_vault_host=matrix-web
+#
+# Vault path: kv/data/infrastructure/matrix-web/synapse (admin_password field)
+# Homeserver and admin user come from vars below — override via extra-vars or
+# private inventory/hosts/ group_vars when that repo exists.
 
 - name: List Matrix Rooms
   hosts: localhost
@@ -17,26 +20,41 @@
 
   vars:
     matrix_vault_host: "matrix-web"
-    _vault_path: "kv/data/infrastructure/{{ matrix_vault_host }}/synapse/admin"
-    _synapse_creds: "{{ lookup('community.hashi_vault.hashi_vault',
-      _vault_path,
+    matrix_homeserver_url: "https://matrix-web.jackaltx.com"
+    matrix_admin_user: "@admin:jackaltx.com"
+    room_limit: "{{ room_limit_override | default(100) }}"
+
+    _vault_creds: "{{ lookup('community.hashi_vault.hashi_vault',
+      'kv/data/infrastructure/' + matrix_vault_host + '/synapse',
       auth_method='token',
       token=lookup('env', 'VAULT_TOKEN'),
       url=lookup('env', 'VAULT_ADDR')) }}"
-    matrix_homeserver_url: "{{ _synapse_creds.url }}"
-    matrix_admin_token:    "{{ _synapse_creds.token }}"
-    matrix_admin_user:     "{{ _synapse_creds.user }}"
-    room_limit: "{{ room_limit_override | default(100) }}"
 
   pre_tasks:
-    - name: Verify Vault credentials loaded
+    - name: Verify Vault env vars set
       ansible.builtin.assert:
         that:
           - lookup('env', 'VAULT_TOKEN') != ''
           - lookup('env', 'VAULT_ADDR') != ''
-        fail_msg: |
-          VAULT_TOKEN or VAULT_ADDR not set.
-          Run:  source ~/.secrets/LabProvision
+        fail_msg: "VAULT_TOKEN or VAULT_ADDR not set — run: source ~/.secrets/LabProvision"
+
+    - name: Login to Matrix as admin (get ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          user: "{{ matrix_admin_user }}"
+          password: "{{ _vault_creds.admin_password }}"
+        status_code: 200
+      register: _login
+      no_log: true
+
+    - name: Set admin token fact
+      ansible.builtin.set_fact:
+        matrix_admin_token: "{{ _login.json.access_token }}"
+      no_log: true
 
   tasks:
 
@@ -46,7 +64,6 @@
           - "Homeserver: {{ matrix_homeserver_url }}"
           - "Admin user: {{ matrix_admin_user }}"
           - "Room limit: {{ room_limit }}"
-          - "Vault path: {{ _vault_path }}"
 
     - name: Query Synapse Admin API for rooms
       ansible.builtin.uri:
@@ -75,3 +92,14 @@
     - name: Summary
       ansible.builtin.debug:
         msg: "Total rooms: {{ rooms_response.json.total_rooms }}"
+
+  post_tasks:
+    - name: Logout (revoke ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/logout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: 200
+      no_log: true
+      ignore_errors: true
