@@ -161,37 +161,111 @@ Scenarios live in **`extensions/molecule/`** (not a top-level `molecule/` dir):
 - `inventory/group_vars/all.yml` — gitignored, site-specific values
 - `inventory/group_vars/vault.yml.example` — template for secrets structure
 
+## Architectural Vision — Matrix as Federated Control Plane
+
+Matrix rooms are more than chat channels — they are **scoped, federated control planes
+for infrastructure services**, with bots as the translation layer between human intent
+and API calls (ISPConfig, Vault, Docker, etc.).
+
+**Why this works:**
+
+- Power levels + invite-only rooms = access control without any external auth system
+- A bot only accepts commands from users with sufficient power level in that room
+- The room IS the security context — no external database needed
+- Room state is federated: works across homeservers, portable to any Matrix client
+- Matrix is an event-sourced audit log by nature — every action is recorded
+
+**The Q/P/R triad:** every operation in this collection follows Query → Process → Report.
+`list-rooms.yml` is the reference implementation. `matrix_config` follows the same pattern
+at the module level (query current state, diff against desired, report changes).
+
+## Operation Taxonomy
+
+The mylab matrix playbooks fall into four categories — these map to future `matrix-manage.sh` verbs:
+
+| Verb | Playbooks | Description |
+|------|-----------|-------------|
+| `provision` | `*-matrix-config.yml` | Idempotent create/update: user + room + members + power levels |
+| `remove` | `remove-*`, `delete-room`, `clear-room` | Tear down resources |
+| `list` | `list-rooms`, `list-rooms-by-user`, `list-users-by-room` | Query + display |
+| `audit` | `audit-tokens`, `scan-orphans`, `cleanup-orphans` | Inspect + optional remediate |
+
+## Layered Provisioning Pattern
+
+Human-readable from the existing mylab playbooks:
+
+```text
+base          → @admin, @jackal, @solti-logger    (humans + ops rooms)
+second-brain  → @conner, @brain2  + #SecondBrain  (bot gets its own room)
+salty         → @salty added to #SecondBrain      (bot joins existing room — no new room)
+card-capture  → @card-capture    + #CardCapture   (bot gets its own room)
+```
+
+Key distinction: a bot either **owns a room** (creates it, is creator) or **joins a room**
+(added as member to a room owned by another bot/user). Both are idempotent via `matrix_config`.
+
+## Inventory Schema Direction (matrix-manage.sh)
+
+The 9 hand-written mylab playbooks are 90% identical boilerplate — only the `vars` block
+differs. The generator reads this schema from inventory and constructs the `matrix_config`
+call at runtime. Credentials come from Vault, not env vars.
+
+```yaml
+# inventory/hosts/group_vars/matrix_bots.yml  (private repo)
+matrix_homeserver: "matrix-web"
+matrix_domain: "jackaltx.com"
+matrix_homeserver_url: "https://matrix-web.jackaltx.com"
+
+matrix_bots:
+  - name: "card-capture"
+    user_id: "@card-capture"
+    displayname: "Card Capture Bot"
+    vault_path: "infrastructure/matrix-web/synapse/bots/card-capture"
+    ratelimit_override: {messages_per_second: 0, burst_count: 0}
+    room:
+      alias: "CardCapture"
+      name: "Card Capture"
+      topic: "Drop a business card photo — bot extracts contact to Second Brain"
+      retention: {max_lifetime_days: 7}
+      members:
+        - {user_id: "@jackal",       power_level: 100}
+        - {user_id: "@card-capture", power_level: 50}
+
+  - name: "salty"
+    user_id: "@salty"
+    displayname: "Salty"
+    vault_path: "infrastructure/matrix-web/synapse/bots/salty"
+    ratelimit_override: {messages_per_second: 0, burst_count: 0}
+    room:
+      alias: "SecondBrain"   # existing room — bot joins, does not create
+      join_only: true
+      members:
+        - {user_id: "@jackal", power_level: 100}
+        - {user_id: "@salty",  power_level: 50}
+```
+
+`join_only: true` signals intent: this bot does not own the room. The generator skips
+room creation and only ensures membership and power levels.
+
+Token output: written to Vault at `kv/runtime/matrix-web/bots/<name>/token` instead of
+`~/.secrets/LabMatrix`. This is the migration path from the current env-var pattern.
+
 ## Architecture Direction — Runtime Provisioning for Agent Delegation
 
-Currently this collection is Ansible-only: playbooks call `matrix_config` and `matrix_event`
-from the controller at deploy/config time. The intended future role is as the **provisioning
-backend for the delegator/sub-agent pattern** in `solti-matrix-bots`.
+The intended future role is as the **provisioning backend for the delegator/sub-agent
+pattern** in `solti-matrix-bots`. When salty-bot needs to spin up a per-room card-capture
+instance, it provisions the room at runtime — not from an Ansible playbook.
 
-When salty-bot (or any delegator) needs to spin up a per-room card-capture instance, it must
-provision the room and user **at runtime** — not from an Ansible playbook. That means the
-`matrix_config` logic needs to be callable from a running Python bot, not just from the
-Ansible control plane.
+**The gap:** `matrix_config` is an Ansible module. The Matrix Admin API calls inside it
+are plain `requests`. Extract the core logic into a `solti_matrix` Python package
+(vendored into the bot venv) so bots can call `provision_room(alias, members)` directly.
 
-**The gap:** `matrix_config` and `matrix_event` are Ansible modules (Python files that
-Ansible serializes and executes remotely). The Matrix Admin API calls inside them are plain
-`requests` — there is no fundamental reason they can't be extracted into a standalone
-Python library callable directly by bot code.
-
-**Likely path:**
-
-1. Extract the core provisioning logic from `plugins/modules/matrix_config.py` into a
-   `solti_matrix` Python package (pip-installable or vendored into the bot venv)
-2. salty-bot imports it, calls `provision_room(alias, members)` at session-start time
-3. `matrix_event`'s self-healing auth already works as a pattern — reuse it in the library
-
-This is a **future sprint** item. Current Ansible-only usage is correct for now.
-The `matrix_config` module is the right abstraction to build on — do not bypass it
-with raw Admin API calls in bot code, as that would duplicate logic that belongs here.
+This is a **future sprint** item. Ansible-only usage is correct for now.
 
 ## Claude's Role
 
-- Adding new Matrix config playbooks in `mylab/playbooks/matrix/` — follow the
-  pattern in `salty-matrix-config.yml` (layer on existing config, add user + room member)
-- Extending `matrix_config` or `matrix_event` modules
-- Debugging token issues — check `/tmp/ansible-matrix-token-*` on the host
-- Do not touch the dead modules/roles unless explicitly cleaning them up
+- New bot provisioning: add entry to `matrix_bots` in private inventory, run generator
+- Do not add new per-bot playbooks to `mylab/playbooks/matrix/` — migrate to generator instead
+- Extending `matrix_config` or `matrix_event` modules: read this file first
+- Debugging token issues: check `/tmp/ansible-matrix-token-*` on the controller
+- Do not touch dead modules/roles (synapse_room, hookshot_webhook, synapse_config) unless explicitly cleaning up
