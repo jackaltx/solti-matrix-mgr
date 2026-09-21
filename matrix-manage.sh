@@ -1,0 +1,328 @@
+#!/usr/bin/env bash
+#
+# matrix-manage.sh — Generate and run Matrix provisioning playbooks
+#
+# Prereq: source ~/.secrets/LabProvision (sets VAULT_ADDR + VAULT_TOKEN)
+#
+# Usage:
+#   ./matrix-manage.sh [-i INVENTORY] <command> [target]
+#
+# Commands:
+#   provision <bot-name>    Idempotent create/update: user + room + members + power levels
+#   provision all           Provision all bots in matrix_bots inventory order
+#   list rooms              List all rooms on the homeserver
+#   list users <room-alias> List members of a specific room with power levels
+#   audit tokens            Audit admin user devices/access tokens
+#   audit orphans           Scan for orphaned users and rooms
+#
+# Inventory:
+#   Provide via -i or SOLTI_INVENTORY env var.
+#   Must have group_vars/ with matrix_homeserver_url, matrix_domain,
+#   matrix_admin_user, matrix_admin_password, and matrix_bots list.
+#   See inventory/hosts.example and inventory/group_vars/vault.yml.example.
+#
+# Examples:
+#   source ~/.secrets/LabProvision
+#   ./matrix-manage.sh -i inventory/hosts provision card-capture
+#   ./matrix-manage.sh -i inventory/hosts list rooms
+#   ./matrix-manage.sh -i inventory/hosts audit orphans
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMP_DIR="${SCRIPT_DIR}/tmp"
+INVENTORY="${SOLTI_INVENTORY:-}"
+EXTRA_ARGS=()
+
+mkdir -p "${TEMP_DIR}"
+chmod 700 "${TEMP_DIR}"
+
+TEMP_PLAYBOOK=""
+cleanup() {
+    if [[ $? -eq 0 && -n "${TEMP_PLAYBOOK}" && -f "${TEMP_PLAYBOOK}" ]]; then
+        rm -f "${TEMP_PLAYBOOK}"
+    fi
+}
+trap cleanup EXIT INT TERM
+
+# ---------------------------------------------------------------------------
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [-i INVENTORY] <command> [target]
+
+Commands:
+  provision <bot-name>    Provision a specific bot (user + room + power levels)
+  provision all           Provision all bots defined in matrix_bots
+  list rooms              List all rooms on the homeserver
+  list users <alias>      List members of a specific room
+  audit tokens            Audit admin access tokens/devices
+  audit orphans           Scan for orphaned users and rooms
+
+Options:
+  -i INVENTORY    Inventory directory (or set SOLTI_INVENTORY env var)
+  -e KEY=VALUE    Extra vars passed to ansible-playbook (repeatable)
+  -v              Verbose ansible output
+
+Prereq: source ~/.secrets/LabProvision
+EOF
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Parse options
+while getopts ":i:e:v" opt; do
+    case $opt in
+        i) INVENTORY="$OPTARG" ;;
+        e) EXTRA_ARGS+=("-e" "$OPTARG") ;;
+        v) EXTRA_ARGS+=("-v") ;;
+        *) usage ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+COMMAND="${1:-}"
+TARGET="${2:-}"
+
+[[ -z "$COMMAND" ]] && usage
+
+# ---------------------------------------------------------------------------
+# Validate inventory
+if [[ -z "$INVENTORY" ]]; then
+    echo "ERROR: Inventory required. Use -i INVENTORY or set SOLTI_INVENTORY." >&2
+    echo "       See inventory/hosts.example for the expected structure." >&2
+    exit 1
+fi
+
+if [[ ! -e "$INVENTORY" ]]; then
+    echo "ERROR: Inventory not found: $INVENTORY" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Common pre_tasks block — login at runtime, revoke on exit
+# Referenced by all generated playbooks. Admin credentials come from
+# inventory vars (matrix_admin_user, matrix_admin_password).
+PRE_TASKS=$(cat <<'YAML'
+  pre_tasks:
+    - name: Login to Matrix as admin (ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          user: "{{ matrix_admin_user }}"
+          password: "{{ matrix_admin_password }}"
+        status_code: 200
+      register: _login
+      no_log: true
+
+    - ansible.builtin.set_fact:
+        _admin_token: "{{ _login.json.access_token }}"
+      no_log: true
+YAML
+)
+
+POST_TASKS=$(cat <<'YAML'
+  post_tasks:
+    - name: Logout (revoke ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/logout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ _admin_token }}"
+        status_code: 200
+      no_log: true
+      ignore_errors: true
+YAML
+)
+
+# ---------------------------------------------------------------------------
+generate_provision_playbook() {
+    local bot_name="$1"
+
+    # For 'all', use selectattr loop over matrix_bots in inventory order.
+    # For a specific bot, filter to just that entry.
+    if [[ "$bot_name" == "all" ]]; then
+        local bot_filter="matrix_bots"
+        local play_title="Provision all Matrix bots"
+    else
+        local bot_filter="matrix_bots | selectattr('name', 'equalto', '${bot_name}') | list"
+        local play_title="Provision ${bot_name}"
+    fi
+
+    cat > "$TEMP_PLAYBOOK" <<YAML
+---
+# Generated by matrix-manage.sh: provision ${bot_name}
+- name: ${play_title}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+${PRE_TASKS}
+
+  tasks:
+    - name: Provision bot
+      jackaltx.solti_matrix_mgr.matrix_config:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token:   "{{ _admin_token }}"
+        domain:         "{{ matrix_domain }}"
+        users:
+          - user_id:     "{{ item.user_id }}"
+            displayname: "{{ item.displayname }}"
+            password:    "{{ item.password }}"
+            ratelimit_override: "{{ item.ratelimit_override | default(omit) }}"
+        rooms: "{{ item.rooms | default([]) }}"
+      loop: "{{ ${bot_filter} }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: results
+      no_log: "{{ matrix_no_log | default(true) }}"
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg:
+          - "Bot: {{ item.item.name }}"
+          - "Changed: {{ item.changed }}"
+          - "Summary: {{ item.summary }}"
+      loop: "{{ results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Show generated tokens
+      ansible.builtin.debug:
+        msg: "Token for {{ item.item.user_id }}:{{ matrix_domain }} — save to Vault at kv/runtime/{{ matrix_homeserver }}/{{ item.item.name }}/token"
+      loop: "{{ results.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.tokens | default({}) | length > 0
+
+${POST_TASKS}
+YAML
+}
+
+# ---------------------------------------------------------------------------
+generate_list_rooms_playbook() {
+    cat > "$TEMP_PLAYBOOK" <<YAML
+---
+# Generated by matrix-manage.sh: list rooms
+- name: List Matrix Rooms
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+${PRE_TASKS}
+
+  tasks:
+    - name: Query Synapse Admin API for rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/rooms?limit={{ room_limit | default(100) }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ _admin_token }}"
+        status_code: 200
+      register: _rooms
+      no_log: true
+
+    - ansible.builtin.debug:
+        var: rooms_result
+      vars:
+        rooms_result: "{{ _rooms.json.rooms | map('combine', {}) | map('dict2items') | map('selectattr', 'key', 'in', _fields) | map('items2dict') | list }}"
+        _fields: [room_id, name, canonical_alias, creator, joined_members, join_rules]
+
+    - ansible.builtin.debug:
+        msg: "Total rooms: {{ _rooms.json.total_rooms }}"
+
+${POST_TASKS}
+YAML
+}
+
+# ---------------------------------------------------------------------------
+generate_list_users_playbook() {
+    local room_alias="$1"
+    cat > "$TEMP_PLAYBOOK" <<YAML
+---
+# Generated by matrix-manage.sh: list users ${room_alias}
+- name: List members of #${room_alias}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+${PRE_TASKS}
+
+  tasks:
+    - name: Resolve room alias to ID
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/%23${room_alias}%3A{{ matrix_domain }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ _admin_token }}"
+        status_code: 200
+      register: _alias
+      no_log: true
+
+    - name: Get room power levels
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _alias.json.room_id }}/state/m.room.power_levels"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ _admin_token }}"
+        status_code: 200
+      register: _levels
+      no_log: true
+
+    - name: Get joined members
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _alias.json.room_id }}/joined_members"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ _admin_token }}"
+        status_code: 200
+      register: _members
+      no_log: true
+
+    - ansible.builtin.debug:
+        msg: "{{ item.key }} — level {{ _levels.json.users.get(item.key, _levels.json.users_default | default(0)) }}"
+      loop: "{{ _members.json.joined | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+${POST_TASKS}
+YAML
+}
+
+# ---------------------------------------------------------------------------
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+TEMP_PLAYBOOK="${TEMP_DIR}/matrix-${COMMAND}-${TARGET:-}-${TIMESTAMP}.yml"
+
+case "$COMMAND" in
+    provision)
+        [[ -z "$TARGET" ]] && { echo "ERROR: provision requires a bot name or 'all'"; exit 1; }
+        generate_provision_playbook "$TARGET"
+        ;;
+    list)
+        case "$TARGET" in
+            rooms)   generate_list_rooms_playbook ;;
+            users)
+                [[ -z "${3:-}" ]] && { echo "ERROR: list users requires a room alias"; exit 1; }
+                generate_list_users_playbook "${3}"
+                ;;
+            *) echo "ERROR: list target must be 'rooms' or 'users <alias>'"; exit 1 ;;
+        esac
+        ;;
+    audit)
+        case "$TARGET" in
+            tokens)  TEMP_PLAYBOOK="${SCRIPT_DIR}/playbooks/admin/audit-tokens.yml"; cleanup() { :; } ;;
+            orphans) TEMP_PLAYBOOK="${SCRIPT_DIR}/playbooks/admin/scan-orphans.yml"; cleanup() { :; } ;;
+            *) echo "ERROR: audit target must be 'tokens' or 'orphans'"; exit 1 ;;
+        esac
+        ;;
+    *) echo "ERROR: Unknown command: $COMMAND"; usage ;;
+esac
+
+run_args=(-i "${INVENTORY}" "${TEMP_PLAYBOOK}")
+[[ ${#EXTRA_ARGS[@]} -gt 0 ]] && run_args+=("${EXTRA_ARGS[@]}")
+
+echo "Running: ansible-playbook ${run_args[*]}"
+echo ""
+ansible-playbook "${run_args[@]}"

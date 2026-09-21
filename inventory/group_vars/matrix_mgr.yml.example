@@ -1,0 +1,105 @@
+---
+# inventory/group_vars/matrix_mgr.yml.example
+#
+# Copy to matrix_mgr.yml (in your private inventory/hosts/ repo) and fill in.
+# Credentials can be plain values or Vault lookups — matrix-manage.sh doesn't care.
+#
+# Simple path: fill in values directly, encrypt with ansible-vault if desired.
+# Vault path:  use community.hashi_vault.hashi_vault lookups (see solti-docker pattern).
+
+# =============================================================================
+# HOMESERVER CONNECTION
+# =============================================================================
+
+matrix_homeserver: "matrix-web"                          # used in Vault paths
+matrix_homeserver_url: "https://matrix-web.example.com"
+matrix_domain: "example.com"
+matrix_admin_user: "@admin:example.com"
+matrix_admin_password: "CHANGEME"                        # or Vault lookup
+
+matrix_no_log: true    # set false to debug credential issues
+
+# =============================================================================
+# BOT DEFINITIONS
+# =============================================================================
+# Each bot entry becomes one matrix_config call: creates the user, creates or
+# joins the room, sets power levels. Run order = list order.
+#
+# Patterns:
+#   - rooms: [...]        bot owns a room (creates if absent, reconciles members)
+#   - rooms: []           bot joins rooms defined elsewhere (add via that bot's entry)
+#   - rooms: omitted      same as rooms: []
+
+matrix_bots:
+
+  # ── Infrastructure bots (Layer 0 equivalent) ──────────────────────────────
+
+  - name: "solti-logger"
+    user_id: "@solti-logger"
+    displayname: "SOLTI Logger Bot"
+    password: "CHANGEME"
+    ratelimit_override:
+      messages_per_second: 0
+      burst_count: 0
+    rooms:
+      - alias: "solti-ops"
+        name: "SOLTI Operations"
+        topic: "Infrastructure automation events and monitoring"
+        retention:
+          max_lifetime_days: 30
+        members:
+          - {user_id: "@jackal",       power_level: 100}
+          - {user_id: "@solti-logger", power_level: 50}
+
+  # ── Application bots — own their room ─────────────────────────────────────
+
+  - name: "brain2"
+    user_id: "@brain2"
+    displayname: "Second Brain"
+    password: "CHANGEME"
+    ratelimit_override:
+      messages_per_second: 0
+      burst_count: 0
+    rooms:
+      - alias: "SecondBrain"
+        name: "Pinkee Second Brain"
+        topic: "Second brain capture — drop a note, @brain2 classifies it"
+        retention:
+          max_lifetime_days: 30
+        members:
+          - {user_id: "@jackal", power_level: 100}
+          - {user_id: "@brain2", power_level: 50}
+
+  - name: "card-capture"
+    user_id: "@card-capture"
+    displayname: "Card Capture Bot"
+    password: "CHANGEME"
+    ratelimit_override:
+      messages_per_second: 0
+      burst_count: 0
+    rooms:
+      - alias: "CardCapture"
+        name: "Card Capture"
+        topic: "Drop a business card photo — bot extracts contact to Second Brain"
+        retention:
+          max_lifetime_days: 7
+        members:
+          - {user_id: "@jackal",       power_level: 100}
+          - {user_id: "@card-capture", power_level: 50}
+
+  # ── Application bots — join existing room ─────────────────────────────────
+  # No rooms: block means no room creation. Members list adds this bot to
+  # the room that another bot already owns (room must already exist).
+
+  - name: "salty"
+    user_id: "@salty"
+    displayname: "Salty"
+    password: "CHANGEME"
+    ratelimit_override:
+      messages_per_second: 0
+      burst_count: 0
+    rooms:
+      - alias: "SecondBrain"     # joins brain2's room, does not create it
+        members:
+          - {user_id: "@jackal", power_level: 100}
+          - {user_id: "@salty",  power_level: 50}
