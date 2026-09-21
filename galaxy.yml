@@ -16,4 +16,5 @@ tags:
   - solti
 dependencies:
   community.docker: ">=3.0.0"
+  community.hashi_vault: ">=6.0.0"
 repository: https://github.com/jackaltx/solti-matrix-mgr

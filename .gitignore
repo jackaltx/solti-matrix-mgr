@@ -1,5 +1,8 @@
 # Ansible Collection .gitignore
 
+# Private hosts inventory (separate git repo, cloned into inventory/hosts/)
+inventory/hosts/
+
 # Build artifacts
 *.tar.gz
 *.zip

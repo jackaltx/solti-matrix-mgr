@@ -1,0 +1,77 @@
+---
+# List all rooms on the Matrix homeserver via Synapse Admin API
+#
+# Credentials fetched from HashiVault — no wrapper script needed.
+# Prereq: source ~/.secrets/LabProvision (sets VAULT_ADDR + VAULT_TOKEN)
+#
+# Usage:
+#   source ~/.secrets/LabProvision
+#   ansible-playbook playbooks/admin/list-rooms.yml
+#   ansible-playbook playbooks/admin/list-rooms.yml -e room_limit_override=50
+#   ansible-playbook playbooks/admin/list-rooms.yml -e matrix_vault_host=matrix-web
+
+- name: List Matrix Rooms
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    matrix_vault_host: "matrix-web"
+    _vault_path: "kv/data/infrastructure/{{ matrix_vault_host }}/synapse/admin"
+    _synapse_creds: "{{ lookup('community.hashi_vault.hashi_vault',
+      _vault_path,
+      auth_method='token',
+      token=lookup('env', 'VAULT_TOKEN'),
+      url=lookup('env', 'VAULT_ADDR')) }}"
+    matrix_homeserver_url: "{{ _synapse_creds.url }}"
+    matrix_admin_token:    "{{ _synapse_creds.token }}"
+    matrix_admin_user:     "{{ _synapse_creds.user }}"
+    room_limit: "{{ room_limit_override | default(100) }}"
+
+  pre_tasks:
+    - name: Verify Vault credentials loaded
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VAULT_TOKEN') != ''
+          - lookup('env', 'VAULT_ADDR') != ''
+        fail_msg: |
+          VAULT_TOKEN or VAULT_ADDR not set.
+          Run:  source ~/.secrets/LabProvision
+
+  tasks:
+
+    - name: Display configuration
+      ansible.builtin.debug:
+        msg:
+          - "Homeserver: {{ matrix_homeserver_url }}"
+          - "Admin user: {{ matrix_admin_user }}"
+          - "Room limit: {{ room_limit }}"
+          - "Vault path: {{ _vault_path }}"
+
+    - name: Query Synapse Admin API for rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/rooms?limit={{ room_limit }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        return_content: true
+        status_code: 200
+      register: rooms_response
+      no_log: true
+
+    - name: Display rooms
+      ansible.builtin.debug:
+        var: rooms_result
+      vars:
+        rooms_result: "{{ rooms_response.json.rooms | map('combine', {}) | map('dict2items') | map('selectattr', 'key', 'in', display_fields) | map('items2dict') | list }}"
+        display_fields:
+          - room_id
+          - name
+          - canonical_alias
+          - creator
+          - joined_members
+          - join_rules
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: "Total rooms: {{ rooms_response.json.total_rooms }}"
