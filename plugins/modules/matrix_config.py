@@ -409,6 +409,67 @@ def invite_to_room(module, homeserver_url, access_token, room_id, user_id):
     return info['status']
 
 
+def get_power_levels(module, homeserver_url, access_token, room_id):
+    """Get current m.room.power_levels state event content."""
+    url = f"{homeserver_url}/_matrix/client/v3/rooms/{room_id}/state/m.room.power_levels"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    resp, info = fetch_url(module, url, headers=headers, method="GET")
+
+    if info['status'] == 200:
+        return json.loads(resp.read())
+    return {}
+
+
+def set_power_levels(module, homeserver_url, access_token, room_id, members, domain):
+    """Apply declared power_level values from members list to the room.
+
+    Merges into the existing m.room.power_levels state event — levels for users
+    not in the config are preserved unchanged. Returns True if the state event
+    was updated, False if nothing needed changing.
+    """
+    # Collect only members that have an explicit power_level declared
+    desired = {}
+    for member in members:
+        if 'power_level' not in member:
+            continue
+        user_id_short = member['user_id']
+        if not user_id_short.startswith('@'):
+            user_id_short = f"@{user_id_short}"
+        desired[f"{user_id_short}:{domain}"] = member['power_level']
+
+    if not desired:
+        return False
+
+    current = get_power_levels(module, homeserver_url, access_token, room_id)
+    current_users = current.get('users', {})
+
+    # Check whether any level actually differs
+    needs_update = any(current_users.get(uid) != level for uid, level in desired.items())
+    if not needs_update:
+        return False
+
+    # Merge desired into a copy of the full current state event
+    new_state = dict(current)
+    new_state['users'] = {**current_users, **desired}
+
+    url = f"{homeserver_url}/_matrix/client/v3/rooms/{room_id}/state/m.room.power_levels"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    resp, info = fetch_url(
+        module, url, headers=headers, method="PUT",
+        data=json.dumps(new_state)
+    )
+
+    if info['status'] not in [200, 201]:
+        module.fail_json(msg=f"Failed to set power levels for room {room_id}: {info}")
+
+    return True
+
+
 def set_retention_policy(module, homeserver_url, access_token, room_id, retention):
     """Set m.room.retention state event for auto-expiry of messages"""
     if not retention:
@@ -514,6 +575,12 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
             if status in [200, 403, 429]:
                 members_invited.append(user_id_short)
 
+        # Apply declared power levels (must happen after invites so users exist in room)
+        power_levels_set = set_power_levels(
+            module, homeserver_url, access_token, room_id,
+            room_config.get('members', []), domain
+        )
+
         result = {
             'alias': room_alias,
             'action': 'created',
@@ -522,6 +589,8 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
         }
         if retention_set:
             result['retention_set'] = True
+        if power_levels_set:
+            result['power_levels_set'] = True
 
         return result
 
@@ -544,23 +613,31 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
         'missing_members': list(missing_members)
     }
 
+    members_added = []
     if missing_members:
-        members_added = []
         for user_id in missing_members:
             status = invite_to_room(module, homeserver_url, access_token, room_id, user_id)
-            # Only count as added if actually invited (not already in room)
             if status == 200:
                 members_added.append(user_id.split(':')[0])
 
-        # If we added members, report the change
+    # Apply declared power levels regardless of whether members changed
+    power_levels_changed = set_power_levels(
+        module, homeserver_url, access_token, room_id,
+        room_config.get('members', []), domain
+    )
+
+    if members_added or power_levels_changed:
+        result = {
+            'alias': room_alias,
+            'action': 'updated',
+            'debug': debug_info,
+            'changed': True
+        }
         if members_added:
-            return {
-                'alias': room_alias,
-                'action': 'members_added',
-                'members_added': members_added,
-                'debug': debug_info,
-                'changed': True
-            }
+            result['members_added'] = members_added
+        if power_levels_changed:
+            result['power_levels_set'] = True
+        return result
 
     return {
         'alias': room_alias,
@@ -627,7 +704,8 @@ def run_module():
         'users_updated': len([r for r in user_results if r['action'] == 'updated']),
         'users_unchanged': len([r for r in user_results if r['action'] == 'unchanged']),
         'rooms_created': len([r for r in room_results if r['action'] == 'created']),
-        'rooms_members_added': len([r for r in room_results if r['action'] == 'members_added']),
+        'rooms_updated': len([r for r in room_results if r['action'] == 'updated']),
+        'rooms_members_added': len([r for r in room_results if r['action'] == 'updated']),  # compat alias
         'rooms_unchanged': len([r for r in room_results if r['action'] == 'unchanged']),
     }
 
