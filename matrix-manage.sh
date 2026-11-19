@@ -31,7 +31,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMP_DIR="${SCRIPT_DIR}/tmp"
-INVENTORY="${SOLTI_INVENTORY:-}"
+INVENTORY="${SOLTI_INVENTORY:-$(dirname "${BASH_SOURCE[0]}")/inventory/hosts}"
 EXTRA_ARGS=()
 
 mkdir -p "${TEMP_DIR}"
