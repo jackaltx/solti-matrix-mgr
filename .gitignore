@@ -3,7 +3,7 @@
 # Private site inventory (separate git repo, cloned into inventory/hosts/)
 # Contains real host names, Vault paths, and bot lists.
 # See inventory/hosts.example for the public template.
-inventory/hosts/
+inventory/hosts
 
 # Build artifacts
 *.tar.gz
