@@ -193,11 +193,14 @@ ${PRE_TASKS}
 
     - name: Show generated tokens
       ansible.builtin.debug:
-        msg: "Token for {{ item.item.user_id }}:{{ matrix_domain }} — save to Vault at kv/runtime/{{ matrix_homeserver }}/{{ item.item.name }}/token"
+        msg:
+          - "Bot:   {{ item.item.name }} ({{ item.item.user_id }}:{{ matrix_domain }})"
+          - "Token: {{ item.tokens[item.item.user_id + ':' + matrix_domain] | default('(already existed — check LabMatrix)') }}"
       loop: "{{ results.results }}"
       loop_control:
         label: "{{ item.item.name }}"
       when: item.tokens | default({}) | length > 0
+      no_log: false
 
 ${POST_TASKS}
 YAML
