@@ -36,7 +36,6 @@
               - user_id: "@admin"
                 power_level: 100
               - user_id: "@bot"
-                power_level: 50
       register: config_result
 
     - name: Post E2E test event
