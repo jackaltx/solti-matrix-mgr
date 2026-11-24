@@ -1,7 +1,9 @@
 # Ansible Collection .gitignore
 
-# Private hosts inventory (separate git repo, cloned into inventory/hosts/)
-inventory/hosts/
+# Private site inventories (separate git repos, cloned into inventory/<homeserver>/)
+# Each directory is a private repo with real host names, Vault paths, and bot lists.
+# See inventory/hosts.example for the public template.
+inventory/*/
 
 # Build artifacts
 *.tar.gz
