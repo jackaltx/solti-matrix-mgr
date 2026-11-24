@@ -104,10 +104,12 @@ jobs:
           else
             ICON="✅"
           fi
-          curl -sf -X POST "${MATRIX_URL}/_matrix/client/v3/rooms/${MATRIX_ROOM}/send/m.room.message" \
+          ROOM_ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${MATRIX_ROOM}'))")
+          TXN_ID="ci-$(date +%s%N)"
+          curl -sf -X PUT "${MATRIX_URL}/_matrix/client/v3/rooms/${ROOM_ENCODED}/send/m.room.message/${TXN_ID}" \
             -H "Authorization: Bearer ${MATRIX_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"msgtype\":\"m.text\",\"body\":\"${ICON} ${{ github.repository }} lint — ${STATUS} (${{ github.ref_name }} @ ${{ github.sha }}))\"}"
+            -d "{\"msgtype\":\"m.text\",\"body\":\"${ICON} ${{ github.repository }} lint — ${STATUS} (${{ github.ref_name }} @ ${GITHUB_SHA::7})\"}"
 
   syntax-check:
     name: Ansible Syntax Check
