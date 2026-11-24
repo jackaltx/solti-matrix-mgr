@@ -3,46 +3,47 @@
   hosts: all
   gather_facts: false
 
-  vars:
-    # We need an initial admin token to start
-    # In a real run, we'd login, but for CI we'll use our new self-healing!
-    # Providing an 'empty' token with credentials will trigger re-auth.
-    matrix_access_token: "empty"
-
   tasks:
-    - name: Create sender bot (via Admin user)
-      jackaltx.solti_matrix_mgr.synapse_user:
-        homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ matrix_access_token }}"
-        admin_user: "{{ matrix_admin_user }}"
-        admin_password: "{{ matrix_admin_password }}"
-        user_id: "{{ matrix_bot_user }}"
-        password: "{{ matrix_bot_password }}"
-        displayname: "E2E Sender Bot"
-        user_type: bot
-        state: present
-      register: bot_creation
+    - name: Get admin access token
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: m.login.password
+          identifier:
+            type: m.id.user
+            user: "admin"
+          password: "{{ matrix_admin_password }}"
+        status_code: 200
+      register: admin_login
+      delegate_to: localhost
 
-    - name: Create test room (via Bot user)
-      jackaltx.solti_matrix_mgr.synapse_room:
+    - name: Provision bot user and test room
+      jackaltx.solti_matrix_mgr.matrix_config:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ bot_creation.access_token }}"
-        admin_user: "{{ matrix_bot_user }}"
-        admin_password: "{{ matrix_bot_password }}"
-        room_id: "{{ matrix_room_id }}"
-        room_name: "E2E Integration Room"
-        room_alias_name: "{{ matrix_room_alias }}"
-        state: present
-        admins:
-          - "@admin:matrix.test"
-          - "@bot:matrix.test"
-      register: room_creation
+        access_token: "{{ admin_login.json.access_token }}"
+        domain: "matrix.test"
+        users:
+          - user_id: "@bot"
+            displayname: "E2E Sender Bot"
+            password: "{{ matrix_bot_password }}"
+            user_type: bot
+        rooms:
+          - alias: "{{ matrix_room_alias }}"
+            name: "E2E Integration Room"
+            members:
+              - user_id: "@admin"
+                power_level: 100
+              - user_id: "@bot"
+                power_level: 50
+      register: config_result
 
     - name: Post E2E test event
       jackaltx.solti_matrix_mgr.matrix_event:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ bot_creation.access_token }}"
-        room_id: "{{ matrix_room_id }}"
+        access_token: "{{ config_result.tokens['@bot:matrix.test'] }}"
+        room_id: "#{{ matrix_room_alias }}:matrix.test"
         content:
           msgtype: "com.solti.event"
           body: "Hello from GitHub E2E Phase 1"

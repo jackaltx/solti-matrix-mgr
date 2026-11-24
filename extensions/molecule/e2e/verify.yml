@@ -8,12 +8,25 @@
     receiver_password: "receiver_password"
 
   tasks:
+    - name: Get admin access token
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: m.login.password
+          identifier:
+            type: m.id.user
+            user: "admin"
+          password: "{{ matrix_admin_password }}"
+        status_code: 200
+      register: admin_login
+      delegate_to: localhost
+
     - name: Create receiver bot (via Admin)
       jackaltx.solti_matrix_mgr.synapse_user:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "invalid"
-        admin_user: "{{ matrix_admin_user }}"
-        admin_password: "{{ matrix_admin_password }}"
+        access_token: "{{ admin_login.json.access_token }}"
         user_id: "{{ receiver_user }}"
         password: "{{ receiver_password }}"
         displayname: "E2E Receiver Bot"
@@ -21,14 +34,38 @@
         state: present
       register: receiver_creation
 
-    - name: Receiver bot joins room
-      jackaltx.solti_matrix_mgr.synapse_room:
-        homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ receiver_creation.access_token }}"
-        admin_user: "{{ receiver_user }}"
-        admin_password: "{{ receiver_password }}"
-        room_id: "{{ matrix_room_id }}"
-        state: join
+    - name: Resolve room alias to room ID
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/%23{{ matrix_room_alias }}%3Amatrix.test"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ admin_login.json.access_token }}"
+        status_code: 200
+      register: room_lookup
+      delegate_to: localhost
+
+    - name: Admin invites receiver bot to room
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ room_lookup.json.room_id }}/invite"
+        method: POST
+        body_format: json
+        body:
+          user_id: "{{ receiver_user }}"
+        headers:
+          Authorization: "Bearer {{ admin_login.json.access_token }}"
+        status_code: [200, 403]
+      delegate_to: localhost
+
+    - name: Receiver bot accepts invite and joins room
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/join/{{ room_lookup.json.room_id }}"
+        method: POST
+        body_format: json
+        body: {}
+        headers:
+          Authorization: "Bearer {{ receiver_creation.access_token }}"
+        status_code: 200
+      delegate_to: localhost
 
     - name: Read expected event ID
       ansible.builtin.slurp:
@@ -49,7 +86,7 @@
       jackaltx.solti_matrix_mgr.matrix_event:
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ receiver_creation.access_token }}"
-        room_id: "{{ matrix_room_id }}"
+        room_id: "{{ room_lookup.json.room_id }}"
         content:
           msgtype: "m.text"
           body: "Acknowledged: Event {{ expected_event_id }} received and validated by receiver bot"
@@ -60,40 +97,26 @@
         msg: "Reply Event ID: {{ reply_post.event_id }}"
       when: lookup('env', 'CI') | length > 0
 
-    - name: Verify message arrival via Admin API (Simple Check)
-      jackaltx.solti_matrix_mgr.synapse_room:
-        homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "invalid"
-        admin_user: "{{ matrix_admin_user }}"
-        admin_password: "{{ matrix_admin_password }}"
-        room_id: "{{ matrix_room_id }}"
-        state: info
+    - name: Get room info via Synapse admin API
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/rooms/{{ room_lookup.json.room_id }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ admin_login.json.access_token }}"
+        status_code: 200
       register: final_room_info
+      delegate_to: localhost
 
-    - name: Assert room exists and has messages
+    - name: Assert room exists with correct alias
       ansible.builtin.assert:
         that:
-          - final_room_info.room.room_id.startswith('!')
-          - matrix_room_alias in final_room_info.room.canonical_alias or matrix_room_alias in (final_room_info.room.aliases | default([]))
+          - final_room_info.json.room_id.startswith('!')
+          - matrix_room_alias in (final_room_info.json.canonical_alias | default(''))
         msg: "E2E Verification Failed: Room info mismatch"
 
     # =========================================================
     # Validate Bot User Types
     # =========================================================
-
-    - name: Login as admin to get access token
-      uri:
-        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
-        method: POST
-        body_format: json
-        body:
-          type: "m.login.password"
-          identifier:
-            type: "m.id.user"
-            user: "{{ matrix_admin_user }}"
-          password: "{{ matrix_admin_password }}"
-        return_content: true
-      register: admin_login
 
     - name: Query all bot users
       jackaltx.solti_matrix_mgr.synapse_user_info:
