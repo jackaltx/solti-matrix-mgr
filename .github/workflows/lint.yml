@@ -84,6 +84,31 @@ jobs:
             ansible-lint || echo "Warnings found but allowed on test branch"
           fi
 
+  notify-matrix:
+    name: Notify Matrix
+    runs-on: ubuntu-latest
+    needs: [yaml-lint, markdown-lint, ansible-lint, syntax-check]
+    if: always()
+    steps:
+      - name: Send CI result to Matrix
+        env:
+          MATRIX_URL: ${{ secrets.MATRIX_HOMESERVER_URL }}
+          MATRIX_TOKEN: ${{ secrets.MATRIX_CI_TOKEN }}
+          MATRIX_ROOM: ${{ secrets.MATRIX_CI_ROOM_ID }}
+        run: |
+          STATUS="${{ needs.yaml-lint.result }}/${{ needs.markdown-lint.result }}/${{ needs.ansible-lint.result }}/${{ needs.syntax-check.result }}"
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            ICON="❌"
+          elif [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            ICON="⚠️"
+          else
+            ICON="✅"
+          fi
+          curl -sf -X POST "${MATRIX_URL}/_matrix/client/v3/rooms/${MATRIX_ROOM}/send/m.room.message" \
+            -H "Authorization: Bearer ${MATRIX_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"msgtype\":\"m.text\",\"body\":\"${ICON} ${{ github.repository }} lint — ${STATUS} (${{ github.ref_name }} @ ${{ github.sha }}))\"}"
+
   syntax-check:
     name: Ansible Syntax Check
     runs-on: ubuntu-latest
