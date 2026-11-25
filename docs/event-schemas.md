@@ -175,12 +175,12 @@ solti:
 solti:
   schema: "deploy.start.v1"
   timestamp: "2026-02-11T16:00:00Z"
-  source: "mylab/fleur"
+  source: "mylab/deploy-host"
   data:
     service: "alloy"
-    host: "fleur.lavnet.net"
-    playbook: "fleur-alloy.yml"
-    operator: "lavender"
+    host: "monitor.example.com"
+    playbook: "monitoring.yml"
+    operator: "admin"
 ```
 
 ---
@@ -214,12 +214,12 @@ solti:
 solti:
   schema: "deploy.complete.v1"
   timestamp: "2026-02-11T16:02:30Z"
-  source: "mylab/fleur"
+  source: "mylab/deploy-host"
   data:
     service: "alloy"
-    host: "fleur.lavnet.net"
-    playbook: "fleur-alloy.yml"
-    operator: "lavender"
+    host: "monitor.example.com"
+    playbook: "monitoring.yml"
+    operator: "admin"
     duration: 150.3
     status: "success"
 ```

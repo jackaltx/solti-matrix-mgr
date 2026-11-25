@@ -98,7 +98,7 @@ devices:
         - device_id: "ABCDEFGHIJ"
           display_name: "Firefox on Linux"
           last_seen_ts: 1771182567107
-          last_seen_ip: "192.168.1.100"
+          last_seen_ip: "192.0.2.100"
           last_seen_user_agent: "Mozilla/5.0..."
           user_id: "@admin:example.com"
 matched_devices:

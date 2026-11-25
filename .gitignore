@@ -48,6 +48,9 @@ synapse_test_event_id.txt
 *~
 .DS_Store
 
+# Developer architecture notes — stay local, not shipped
+CLAUDE.md
+
 # Credentials and secrets
 *.pass
 *.token

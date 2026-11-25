@@ -1,10 +1,10 @@
 ---
 namespace: jackaltx
 name: solti_matrix_mgr
-version: 0.1.0
+version: 1.0.0
 readme: README.md
 authors:
-  - Jack <jack@example.com>
+  - Jack <jack@lavnet.net>
 description: Ansible collection for managing Matrix homeservers (Synapse/Conduit) via Admin API
 license_file: LICENSE
 tags:
