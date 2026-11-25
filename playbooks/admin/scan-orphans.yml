@@ -1,0 +1,228 @@
+---
+# Matrix Orphan and Deficiency Scan — read-only security audit
+#
+# Detects: orphaned users, shadow users, orphaned rooms, unexpected admins,
+# unmanaged rooms (rooms created outside declarative config).
+#
+# Prereq: source ~/.secrets/LabProvision (sets VAULT_ADDR + VAULT_TOKEN)
+#
+# Usage:
+#   ansible-playbook playbooks/admin/scan-orphans.yml
+#
+# Override expected users/rooms via inventory group_vars or extra-vars:
+#   -e '{"matrix_expected_users": ["@admin", "@jackal"]}'
+
+- name: Scan Matrix for Orphans and Deficiencies
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    matrix_vault_host: "matrix-web"
+    matrix_homeserver_url: "https://matrix-web.jackaltx.com"
+    matrix_admin_user: "@admin:jackaltx.com"
+    matrix_domain: "jackaltx.com"
+
+    # Expected users (local part only, domain appended automatically).
+    # Override from inventory group_vars or -e to match your site.
+    matrix_expected_users: "{{ matrix_bots | map(attribute='user_id') | list
+      if matrix_bots is defined else
+      ['@admin', '@jackal', '@solti-logger', '@solti-matrix-watcher'] }}"
+
+    # Expected room aliases (local part only).
+    matrix_expected_rooms: "{{ matrix_bots | selectattr('room', 'defined')
+      | map(attribute='room') | selectattr('alias', 'defined')
+      | map(attribute='alias') | list
+      if matrix_bots is defined else
+      ['solti-verify', 'solti-ops'] }}"
+
+    _vault_creds: "{{ lookup('community.hashi_vault.hashi_vault',
+      'kv/data/infrastructure/' + matrix_vault_host + '/synapse',
+      auth_method='token',
+      token=lookup('env', 'VAULT_TOKEN'),
+      url=lookup('env', 'VAULT_ADDR')) }}"
+
+  pre_tasks:
+    - name: Verify Vault env vars set
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VAULT_TOKEN') != ''
+          - lookup('env', 'VAULT_ADDR') != ''
+        fail_msg: "VAULT_TOKEN or VAULT_ADDR not set — run: source ~/.secrets/LabProvision"
+
+    - name: Login to Matrix as admin (get ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          user: "{{ matrix_admin_user }}"
+          password: "{{ _vault_creds.admin_password }}"
+        status_code: 200
+      register: _login
+      no_log: true
+
+    - name: Set admin token fact
+      ansible.builtin.set_fact:
+        matrix_admin_token: "{{ _login.json.access_token }}"
+      no_log: true
+
+  tasks:
+    - name: Build configured user IDs list
+      ansible.builtin.set_fact:
+        configured_user_ids: "{{ matrix_expected_users | map('regex_replace', '$', ':' + matrix_domain) | list }}"
+
+    - name: Build configured room aliases list
+      ansible.builtin.set_fact:
+        configured_room_aliases: "{{ matrix_expected_rooms | map('regex_replace', '^', '#') | map('regex_replace', '$', ':' + matrix_domain) | list }}"
+
+    - name: Query all Matrix users
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v2/users?from=0&limit=1000"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        return_content: true
+      register: matrix_users_response
+      no_log: true
+
+    - name: Extract Matrix user data
+      ansible.builtin.set_fact:
+        matrix_user_ids: "{{ matrix_users_response.json.users | map(attribute='name') | list }}"
+        matrix_users_detail: "{{ matrix_users_response.json.users }}"
+
+    - name: Query all Matrix rooms
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/rooms?from=0&limit=1000"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        return_content: true
+      register: matrix_rooms_response
+      no_log: true
+
+    - name: Extract Matrix room data
+      ansible.builtin.set_fact:
+        matrix_rooms_detail: "{{ matrix_rooms_response.json.rooms }}"
+
+    - name: Query room memberships for each configured user
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/users/{{ item }}/joined_rooms"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        return_content: true
+      register: user_memberships
+      loop: "{{ configured_user_ids }}"
+      changed_when: false
+      no_log: true
+
+    - name: Identify orphaned users (zero rooms)
+      ansible.builtin.set_fact:
+        orphaned_users: "{{ user_memberships.results | selectattr('json.total', 'equalto', 0) | map(attribute='item') | list }}"
+
+    - name: Find shadow users (in Matrix but not in config)
+      ansible.builtin.set_fact:
+        shadow_users: >-
+          {{
+            matrix_user_ids |
+            difference(configured_user_ids) |
+            reject('regex', '^@(admin:|solti-)') |
+            list
+          }}
+
+    - name: Find empty rooms
+      ansible.builtin.set_fact:
+        orphaned_rooms: "{{ matrix_rooms_detail | selectattr('joined_members', 'equalto', 0) | map(attribute='room_id') | list }}"
+
+    - name: Check for unexpected admins
+      ansible.builtin.set_fact:
+        unexpected_admins: >-
+          {{
+            matrix_users_detail |
+            selectattr('admin', 'equalto', true) |
+            map(attribute='name') |
+            difference(['@admin:' + matrix_domain]) |
+            list
+          }}
+
+    - name: Get room details for unmanaged room detection
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/rooms/{{ item.room_id }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        return_content: true
+        status_code: [200, 404]
+      register: room_details_response
+      loop: "{{ matrix_rooms_detail }}"
+      changed_when: false
+      no_log: true
+
+    - name: Build unmanaged rooms list
+      ansible.builtin.set_fact:
+        unmanaged_rooms: >-
+          {{
+            room_details_response.results |
+            selectattr('status', 'equalto', 200) |
+            rejectattr('json.canonical_alias', 'in', configured_room_aliases) |
+            rejectattr('json.canonical_alias', 'undefined') |
+            map(attribute='json') |
+            list
+          }}
+
+    - name: Display scan summary
+      ansible.builtin.debug:
+        msg:
+          - "========================================="
+          - "Matrix Orphan Scan Results"
+          - "========================================="
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+          - ""
+          - "Configuration:"
+          - "  Configured users: {{ configured_user_ids | length }}"
+          - "  Configured rooms: {{ configured_room_aliases | length }}"
+          - ""
+          - "Matrix Reality:"
+          - "  Total users: {{ matrix_user_ids | length }}"
+          - "  Total rooms: {{ matrix_rooms_detail | length }}"
+          - ""
+          - "Findings:"
+          - "  Orphaned users (no rooms): {{ orphaned_users | length }}"
+          - "  Shadow users (not in config): {{ shadow_users | length }}"
+          - "  Orphaned rooms (empty): {{ orphaned_rooms | length }}"
+          - "  Unmanaged rooms (security): {{ unmanaged_rooms | length }}"
+          - "  Unexpected admins: {{ unexpected_admins | length }}"
+
+    - name: Show orphaned users
+      ansible.builtin.debug:
+        msg: "Orphaned users: {{ orphaned_users }}"
+      when: orphaned_users | length > 0
+
+    - name: Show shadow users
+      ansible.builtin.debug:
+        msg: "Shadow users: {{ shadow_users }}"
+      when: shadow_users | length > 0
+
+    - name: Show unexpected admins
+      ansible.builtin.debug:
+        msg: "Unexpected admins: {{ unexpected_admins }}"
+      when: unexpected_admins | length > 0
+
+    - name: Show unmanaged rooms (security finding)
+      ansible.builtin.debug:
+        msg: "SECURITY - Unmanaged room: {{ item.canonical_alias | default(item.name) }} ({{ item.room_id }}) creator={{ item.creator }}"
+      loop: "{{ unmanaged_rooms }}"
+      when: unmanaged_rooms | length > 0
+
+  post_tasks:
+    - name: Logout (revoke ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/logout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: 200
+      no_log: true
+      ignore_errors: true

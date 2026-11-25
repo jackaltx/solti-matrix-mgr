@@ -1,0 +1,147 @@
+---
+# Audit Matrix admin user devices (access tokens)
+#
+# Prereq: source ~/.secrets/LabProvision (sets VAULT_ADDR + VAULT_TOKEN)
+#
+# Usage:
+#   ansible-playbook playbooks/admin/audit-tokens.yml
+#   ansible-playbook playbooks/admin/audit-tokens.yml -e "cleanup_old=true"
+#   ansible-playbook playbooks/admin/audit-tokens.yml -e "max_age_days=30"
+
+- name: Audit Matrix Admin Tokens
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    matrix_vault_host: "matrix-web"
+    matrix_homeserver_url: "https://matrix-web.jackaltx.com"
+    matrix_admin_user: "@admin:jackaltx.com"
+    cleanup_old: false
+    max_age_days: 30
+
+    _vault_creds: "{{ lookup('community.hashi_vault.hashi_vault',
+      'kv/data/infrastructure/' + matrix_vault_host + '/synapse',
+      auth_method='token',
+      token=lookup('env', 'VAULT_TOKEN'),
+      url=lookup('env', 'VAULT_ADDR')) }}"
+
+  pre_tasks:
+    - name: Verify Vault env vars set
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VAULT_TOKEN') != ''
+          - lookup('env', 'VAULT_ADDR') != ''
+        fail_msg: "VAULT_TOKEN or VAULT_ADDR not set — run: source ~/.secrets/LabProvision"
+
+    - name: Login to Matrix as admin (get ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+        method: POST
+        body_format: json
+        body:
+          type: "m.login.password"
+          user: "{{ matrix_admin_user }}"
+          password: "{{ _vault_creds.admin_password }}"
+        status_code: 200
+      register: _login
+      no_log: true
+
+    - name: Set admin token fact
+      ansible.builtin.set_fact:
+        matrix_admin_token: "{{ _login.json.access_token }}"
+      no_log: true
+
+  tasks:
+    - name: Get all admin user devices
+      jackaltx.solti_matrix_mgr.synapse_device_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ matrix_admin_user }}"
+      register: all_devices
+
+    - name: Find orphaned devices (never used)
+      jackaltx.solti_matrix_mgr.synapse_device_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ matrix_admin_user }}"
+        older_than_days: 0
+      register: orphaned_devices
+
+    - name: Find old ansible tokens
+      jackaltx.solti_matrix_mgr.synapse_device_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ matrix_admin_user }}"
+        user_agent_filter: "ansible-httpget"
+        older_than_days: "{{ max_age_days }}"
+      register: old_ansible_devices
+
+    - name: Display audit summary
+      ansible.builtin.debug:
+        msg:
+          - "=== Matrix Token Audit Report ==="
+          - "User: {{ matrix_admin_user }}"
+          - "Total devices: {{ all_devices.total_devices }}"
+          - "Orphaned (never used): {{ orphaned_devices.matched_count }}"
+          - "Old ansible tokens (>{{ max_age_days }} days): {{ old_ansible_devices.matched_count }}"
+
+    - name: Show orphaned devices
+      ansible.builtin.debug:
+        msg: "{{ orphaned_devices.matched_devices | map(attribute='device_id') | list }}"
+      when: orphaned_devices.matched_count > 0
+
+    - name: Show old ansible tokens
+      ansible.builtin.debug:
+        var: old_ansible_devices.matched_devices
+      when: old_ansible_devices.matched_count > 0
+
+    - name: Show all active devices
+      ansible.builtin.debug:
+        msg: "{{ all_devices.devices | map('combine', {}) | map('dict2items') | map('selectattr', 'key', 'in', display_fields) | map('items2dict') | list }}"
+      vars:
+        display_fields:
+          - device_id
+          - display_name
+          - last_seen_user_agent
+          - last_seen_ts
+
+    - name: Cleanup orphaned devices
+      jackaltx.solti_matrix_mgr.synapse_device_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ matrix_admin_user }}"
+        older_than_days: 0
+        revoke_matched: true
+      register: cleanup_orphaned
+      when: cleanup_old | bool and orphaned_devices.matched_count > 0
+
+    - name: Cleanup old ansible tokens
+      jackaltx.solti_matrix_mgr.synapse_device_info:
+        homeserver_url: "{{ matrix_homeserver_url }}"
+        access_token: "{{ matrix_admin_token }}"
+        user_id: "{{ matrix_admin_user }}"
+        user_agent_filter: "ansible-httpget"
+        older_than_days: "{{ max_age_days }}"
+        revoke_matched: true
+      register: cleanup_ansible
+      when: cleanup_old | bool and old_ansible_devices.matched_count > 0
+
+    - name: Cleanup summary
+      ansible.builtin.debug:
+        msg:
+          - "=== Cleanup Summary ==="
+          - "Revoked orphaned devices: {{ cleanup_orphaned.revoked_devices | default([]) | length }}"
+          - "Revoked old ansible tokens: {{ cleanup_ansible.revoked_devices | default([]) | length }}"
+      when: cleanup_old | bool
+
+  post_tasks:
+    - name: Logout (revoke ephemeral token)
+      ansible.builtin.uri:
+        url: "{{ matrix_homeserver_url }}/_matrix/client/v3/logout"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ matrix_admin_token }}"
+        status_code: 200
+      no_log: true
+      ignore_errors: true
