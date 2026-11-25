@@ -218,7 +218,9 @@ def create_user(module, homeserver_url, access_token, user_id, user_config):
     if user_config.get('password'):
         body['password'] = user_config['password']
 
-    if user_config.get('ratelimit_override'):
+    if user_config.get('user_type'):
+        body['user_type'] = user_config['user_type']
+    elif user_config.get('ratelimit_override'):
         body['user_type'] = None  # Required for ratelimit override
 
     resp, info = fetch_url(
@@ -254,6 +256,10 @@ def update_user(module, homeserver_url, access_token, user_id, user_config, curr
     if user_config.get('admin', False) != current.get('admin', False):
         body['admin'] = user_config['admin']
         changed_fields.append('admin')
+
+    if user_config.get('user_type') and user_config['user_type'] != current.get('user_type'):
+        body['user_type'] = user_config['user_type']
+        changed_fields.append('user_type')
 
     if body:
         resp, info = fetch_url(
