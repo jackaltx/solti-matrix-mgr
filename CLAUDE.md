@@ -262,6 +262,37 @@ are plain `requests`. Extract the core logic into a `solti_matrix` Python packag
 
 This is a **future sprint** item. Ansible-only usage is correct for now.
 
+## CI Notification Pattern (notify-matrix job)
+
+All `solti-*` lint workflows include a `notify-matrix` job that posts the CI result
+to `#solti-ci` via `@gh-notify`. Two rules that must always hold:
+
+**1. Use `|| true` on the curl command.**
+A failed notification must never fail the CI step. The build result is already
+known at that point — a hung or rejected curl obscures it and wastes runner time.
+
+**2. Use `--max-time 15` on curl.**
+Synapse rate-limits concurrent connections by stalling them rather than rejecting
+them. Without a timeout, curl hangs for 60+ seconds. With `--max-time 15` it fails
+fast and the `|| true` absorbs the error cleanly.
+
+```yaml
+curl -sf --max-time 15 -X PUT "${MATRIX_URL}/..." \
+  -H "Authorization: Bearer ${MATRIX_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{...}" || true
+```
+
+**URL:** Always use `https://matrix.jackaltx.com` (public proxy on fleur), never
+`matrix-web.jackaltx.com` (LAN-only). The proxy chain is:
+GitHub Actions → Apache (fleur) → Caddy (10.10.0.13:80) → Synapse (127.0.0.1:8008).
+
+**Token rotation:** Weekly systemd user timer on firefly —
+`~/.config/systemd/user/rotate-matrix-ci-tokens.timer` runs
+`bin/rotate-matrix-ci-tokens.sh`, which logs in as `@gh-notify`, pushes the new
+token to all 7 repos via `gh secret set`. Adding a new repo: append to `REPOS`
+in that script.
+
 ## Claude's Role
 
 - New bot provisioning: add entry to `matrix_bots` in private inventory, run generator
