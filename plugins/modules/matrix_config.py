@@ -417,8 +417,12 @@ def create_room(module, homeserver_url, access_token, domain, room_config):
 
 
 def invite_to_room(module, homeserver_url, access_token, room_id, user_id):
-    """Invite user to room. Returns status code."""
-    url = f"{homeserver_url}/_matrix/client/v3/rooms/{room_id}/invite"
+    """Force-join user to room via Synapse Admin API. Returns status code.
+
+    Uses admin force-join rather than client invite so the user lands in
+    'joined' state immediately — no bot auto-accept required.
+    """
+    url = f"{homeserver_url}/_synapse/admin/v1/join/{room_id}"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
@@ -431,8 +435,7 @@ def invite_to_room(module, homeserver_url, access_token, room_id, user_id):
         data=json.dumps(body)
     )
 
-    # Return status code so caller can differentiate
-    # 200 = invited, 403 = already in room, 429 = rate limit
+    # 200 = joined, 403 = forbidden, 429 = rate limit
     return info['status']
 
 
