@@ -86,11 +86,11 @@ jobs:
 
   notify-matrix:
     name: Notify Matrix
-    needs: [yaml-lint, markdown-lint, ansible-lint, syntax-check]
+    needs: [yaml-lint, markdown-lint, ansible-lint]
     if: always()
     uses: jackaltx/solti-matrix-mgr/.github/workflows/notify-matrix.yml@main
     with:
-      status: "${{ needs.yaml-lint.result }}/${{ needs.markdown-lint.result }}/${{ needs.ansible-lint.result }}/${{ needs.syntax-check.result }}"
+      status: "${{ needs.yaml-lint.result }}/${{ needs.markdown-lint.result }}/${{ needs.ansible-lint.result }}"
       failed: ${{ contains(needs.*.result, 'failure') }}
       cancelled: ${{ contains(needs.*.result, 'cancelled') }}
     secrets:

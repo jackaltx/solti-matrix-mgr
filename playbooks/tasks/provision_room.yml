@@ -64,7 +64,7 @@
   register: _room_alias_result
   no_log: true
 
-- name: "{{ _room.name }} - force-join member {{ item.user_id }} via Synapse Admin API"
+- name: "{{ _room.name }} - force-join all members via Synapse Admin API"
   ansible.builtin.uri:
     url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/join/{{ _room_alias_result.json.room_id }}"
     method: POST

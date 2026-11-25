@@ -1,0 +1,42 @@
+---
+# Per-user device audit sub-task.
+# Called with: _audit_user (full Matrix ID e.g. @gh-notify:jackaltx.com)
+#              _admin_token, matrix_homeserver_url, max_age_days, cleanup_old
+
+- name: "{{ _audit_user }} - get all devices"
+  jackaltx.solti_matrix_mgr.synapse_device_info:
+    homeserver_url: "{{ matrix_homeserver_url }}"
+    access_token: "{{ _admin_token }}"
+    user_id: "{{ _audit_user }}"
+  register: _all_devices
+
+- name: "{{ _audit_user }} - find old devices (>{{ max_age_days }} days)"
+  jackaltx.solti_matrix_mgr.synapse_device_info:
+    homeserver_url: "{{ matrix_homeserver_url }}"
+    access_token: "{{ _admin_token }}"
+    user_id: "{{ _audit_user }}"
+    older_than_days: "{{ max_age_days }}"
+  register: _old_devices
+
+- name: "{{ _audit_user }} - summary"
+  ansible.builtin.debug:
+    msg:
+      - "User:         {{ _audit_user }}"
+      - "Total:        {{ _all_devices.total_devices }}"
+      - "Old (>{{ max_age_days }}d): {{ _old_devices.matched_count }}"
+      - "Devices:      {{ _all_devices.devices | map(attribute='device_id') | list }}"
+
+- name: "{{ _audit_user }} - cleanup old devices"
+  jackaltx.solti_matrix_mgr.synapse_device_info:
+    homeserver_url: "{{ matrix_homeserver_url }}"
+    access_token: "{{ _admin_token }}"
+    user_id: "{{ _audit_user }}"
+    older_than_days: "{{ max_age_days }}"
+    revoke_matched: true
+  register: _cleanup
+  when: cleanup_old | bool and _old_devices.matched_count > 0
+
+- name: "{{ _audit_user }} - cleanup result"
+  ansible.builtin.debug:
+    msg: "Revoked {{ _cleanup.revoked_devices | default([]) | length }} device(s)"
+  when: cleanup_old | bool and _old_devices.matched_count > 0
