@@ -1,0 +1,103 @@
+---
+# Per-room access control assertions. Called by verify_2_access.yml.
+# Input: _v2_room (room definition), _v_room_ids (alias → room_id)
+# Verifies: bot (power 50) CANNOT change state; human (power 100) CAN; bot CAN send messages.
+
+- name: "verify_2 | set room facts — {{ _v2_room.name }}"
+  ansible.builtin.set_fact:
+    _v2_room_id: "{{ _v_room_ids[_v2_room.alias] }}"
+    _v2_bot_member: "{{ _v2_room.members | selectattr('type', 'equalto', 'bot') | list | first }}"
+    _v2_human_member: "{{ _v2_room.members | selectattr('type', 'equalto', 'human') | list | first }}"
+
+- name: "verify_2 | resolve bot + human definitions — {{ _v2_room.name }}"
+  ansible.builtin.set_fact:
+    _v2_bot_def: "{{ matrix_bots | selectattr('user_id', 'equalto', _v2_bot_member.user_id) | first }}"
+    _v2_human_def: "{{ matrix_humans | selectattr('user_id', 'equalto', _v2_human_member.user_id) | first }}"
+
+- name: "verify_2 | login as bot — {{ _v2_bot_def.user_id }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+    method: POST
+    body_format: json
+    body:
+      type: m.login.password
+      identifier:
+        type: m.id.user
+        user: "{{ _v2_bot_def.user_id | regex_replace('^@', '') }}"
+      password: "{{ _v2_bot_def.password }}"
+    status_code: 200
+  register: _v2_bot_login
+  delegate_to: localhost
+
+- name: "verify_2 | bot cannot change room topic — {{ _v2_room.name }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _v2_room_id }}/state/m.room.topic"
+    method: PUT
+    body_format: json
+    body:
+      topic: "bot should not be able to set this"
+    headers:
+      Authorization: "Bearer {{ _v2_bot_login.json.access_token }}"
+    status_code: 403
+  register: _v2_bot_topic
+  delegate_to: localhost
+
+- name: "verify_2 | assert bot was blocked from changing topic — {{ _v2_room.name }}"
+  ansible.builtin.assert:
+    that: _v2_bot_topic.status == 403
+    success_msg: "✓ {{ _v2_room.name }}: bot correctly blocked from changing room state (403)"
+    fail_msg: "✗ {{ _v2_room.name }}: bot should not be able to change room state"
+
+- name: "verify_2 | bot CAN send a message — {{ _v2_room.name }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _v2_room_id }}/send/m.room.message/verify-{{ ansible_date_time.epoch }}-{{ _v2_room.name }}"
+    method: PUT
+    body_format: json
+    body:
+      msgtype: m.text
+      body: "E2E verify: bot message test from {{ _v2_bot_def.user_id }}"
+    headers:
+      Authorization: "Bearer {{ _v2_bot_login.json.access_token }}"
+    status_code: 200
+  register: _v2_bot_msg
+  delegate_to: localhost
+
+- name: "verify_2 | assert bot message succeeded — {{ _v2_room.name }}"
+  ansible.builtin.assert:
+    that: _v2_bot_msg.status == 200
+    success_msg: "✓ {{ _v2_room.name }}: bot can send messages"
+    fail_msg: "✗ {{ _v2_room.name }}: bot should be able to send messages"
+
+- name: "verify_2 | login as human bureaucrat — {{ _v2_human_def.user_id }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
+    method: POST
+    body_format: json
+    body:
+      type: m.login.password
+      identifier:
+        type: m.id.user
+        user: "{{ _v2_human_def.user_id | regex_replace('^@', '') }}"
+      password: "{{ _v2_human_def.password }}"
+    status_code: 200
+  register: _v2_human_login
+  delegate_to: localhost
+
+- name: "verify_2 | bureaucrat CAN change room topic — {{ _v2_room.name }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _v2_room_id }}/state/m.room.topic"
+    method: PUT
+    body_format: json
+    body:
+      topic: "E2E verified — bureaucrat set this"
+    headers:
+      Authorization: "Bearer {{ _v2_human_login.json.access_token }}"
+    status_code: 200
+  register: _v2_human_topic
+  delegate_to: localhost
+
+- name: "verify_2 | assert bureaucrat succeeded — {{ _v2_room.name }}"
+  ansible.builtin.assert:
+    that: _v2_human_topic.status == 200
+    success_msg: "✓ {{ _v2_room.name }}: bureaucrat can change room state"
+    fail_msg: "✗ {{ _v2_room.name }}: bureaucrat should be able to change room state"

@@ -1,0 +1,10 @@
+---
+# verify_1_members: assert each declared member is joined and has the correct power level.
+# Depends on _v_room_ids set by verify_0_rooms.yml.
+
+- name: "verify_1 | check members for each room"
+  ansible.builtin.include_tasks: verify_1_room.yml
+  loop: "{{ matrix_rooms }}"
+  loop_control:
+    loop_var: _v1_room
+    label: "{{ _v1_room.name }}"

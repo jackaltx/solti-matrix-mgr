@@ -1,10 +1,10 @@
 ---
-- name: Converge
+- name: Converge — provision using production inventory schema
   hosts: all
   gather_facts: false
 
   tasks:
-    - name: Get admin access token
+    - name: Login as admin (ephemeral token)
       ansible.builtin.uri:
         url: "{{ matrix_homeserver_url }}/_matrix/client/v3/login"
         method: POST
@@ -16,47 +16,30 @@
             user: "admin"
           password: "{{ matrix_admin_password }}"
         status_code: 200
-      register: admin_login
+      register: _login
       delegate_to: localhost
 
-    - name: Provision bot user and test room
+    - name: Set admin token
+      ansible.builtin.set_fact:
+        _admin_token: "{{ _login.json.access_token }}"
+
+    - name: Bootstrap human users
       jackaltx.solti_matrix_mgr.matrix_config:
         homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ admin_login.json.access_token }}"
-        domain: "matrix.test"
-        default_members:
-          - user_id: "@admin"
-            power_level: 100
-        users:
-          - user_id: "@bot"
-            displayname: "E2E Sender Bot"
-            password: "{{ matrix_bot_password }}"
-            user_type: bot
-        rooms:
-          - alias: "{{ matrix_room_alias }}"
-            name: "E2E Integration Room"
-            members:
-              - user_id: "@bot"
-      register: config_result
+        access_token: "{{ _admin_token }}"
+        domain: "{{ matrix_domain }}"
+        default_members: "{{ default_members | default([]) }}"
+        users: "{{ matrix_humans }}"
+        rooms: []
+      register: _bootstrap_result
 
-    - name: Post E2E test event
-      jackaltx.solti_matrix_mgr.matrix_event:
-        homeserver_url: "{{ matrix_homeserver_url }}"
-        access_token: "{{ config_result.tokens['@bot:matrix.test'] }}"
-        room_id: "#{{ matrix_room_alias }}:matrix.test"
-        content:
-          msgtype: "com.solti.event"
-          body: "Hello from GitHub E2E Phase 1"
-          solti:
-            schema: "test.v1"
-            source: "molecule/e2e"
-            timestamp: "{{ now(fmt='%Y-%m-%dT%H:%M:%SZ') }}"
-            data:
-              message: "Phase 1 Complete"
-      register: event_post
+    - name: Bootstrap summary
+      ansible.builtin.debug:
+        msg: "Humans: {{ _bootstrap_result.summary }}"
 
-    - name: Store event_id for Phase 2
-      ansible.builtin.copy:
-        content: "{{ event_post.event_id }}"
-        dest: "{{ molecule_ephemeral_directory }}/synapse_test_event_id.txt"
-      delegate_to: localhost
+    - name: Provision each room (bots + room + members)
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../../playbooks/tasks/provision_room.yml"
+      loop: "{{ matrix_rooms }}"
+      loop_control:
+        loop_var: _room
+        label: "{{ _room.name }}"

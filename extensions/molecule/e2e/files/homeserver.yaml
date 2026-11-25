@@ -11,6 +11,23 @@ registration_shared_secret: "molecule_test_secret"
 enable_registration: true
 # Allow admin API
 enable_registration_without_verification: true
+# Disable rate limiting for tests
+rc_login:
+  address:
+    per_second: 1000
+    burst_count: 1000
+  account:
+    per_second: 1000
+    burst_count: 1000
+  failed_attempts:
+    per_second: 1000
+    burst_count: 1000
+rc_message:
+  per_second: 1000
+  burst_count: 1000
+rc_admin_redaction:
+  per_second: 1000
+  burst_count: 1000
 # Standard ports
 listeners:
   - port: 8008

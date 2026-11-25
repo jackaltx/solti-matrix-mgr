@@ -1,0 +1,10 @@
+---
+# verify_2_access: assert power level enforcement per room.
+# Depends on _v_room_ids set by verify_0_rooms.yml.
+
+- name: "verify_2 | check access control for each room"
+  ansible.builtin.include_tasks: verify_2_room.yml
+  loop: "{{ matrix_rooms }}"
+  loop_control:
+    loop_var: _v2_room
+    label: "{{ _v2_room.name }}"

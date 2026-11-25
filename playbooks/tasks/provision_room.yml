@@ -2,7 +2,7 @@
 # Provision a single room: create bot users + room + members.
 # Called with loop_var: _room  (one entry from matrix_rooms)
 # Requires: _admin_token, matrix_homeserver_url, matrix_domain, matrix_bots
-#           _vault_addr, _vault_token
+#           _vault_addr + _vault_token (only when bot has no plain password field)
 
 - name: "{{ _room.name }} - find bot definitions"
   ansible.builtin.set_fact:
@@ -17,29 +17,35 @@
         | list
       }}
 
-- name: "{{ _room.name }} - resolve bot passwords from Vault"
+- name: "{{ _room.name }} - resolve bot passwords (plain or Vault)"
   ansible.builtin.set_fact:
     _room_users: "{{ _room_users | default([]) + [_bot_entry] }}"
   vars:
     _bot_entry:
       user_id: "{{ item.user_id }}"
       displayname: "{{ item.displayname }}"
+      user_type: bot
+      ratelimit_override: "{{ item.ratelimit_override | default(omit) }}"
       password: >-
-        {{ lookup('community.hashi_vault.hashi_vault',
-           'kv/data/' + item.vault_path,
-           auth_method='token',
-           token=_vault_token,
-           url=_vault_addr).password }}
+        {{
+          item.password
+          if item.password is defined
+          else lookup('community.hashi_vault.hashi_vault',
+            'kv/data/' + item.vault_path,
+            auth_method='token',
+            token=_vault_token | default(''),
+            url=_vault_addr | default('')).password
+        }}
   loop: "{{ _room_bot_defs }}"
   loop_control:
     label: "{{ item.user_id }}"
-  no_log: true
+  no_log: "{{ matrix_no_log | default(true) }}"
 
-- name: "{{ _room.name }} - build room config object"
+- name: "{{ _room.name }} - build room config"
   ansible.builtin.set_fact:
     _this_room_config:
       alias: "{{ _room.alias }}"
-      name: "{{ _room.display_name }}"
+      name: "{{ _room.display_name | default(_room.name) }}"
       topic: "{{ _room.topic | default('') }}"
       retention: "{{ _room.retention | default({}) }}"
       members: "{{ _room.members }}"
@@ -49,35 +55,12 @@
     homeserver_url: "{{ matrix_homeserver_url }}"
     access_token: "{{ _admin_token }}"
     domain: "{{ matrix_domain }}"
+    default_members: "{{ default_members | default([]) }}"
     users: "{{ _room_users | default([]) }}"
-    rooms: "{{ [_this_room_config] }}"
+    rooms:
+      - "{{ _this_room_config }}"
   register: _room_result
   no_log: "{{ matrix_no_log | default(true) }}"
-
-- name: "{{ _room.name }} - resolve room ID"
-  ansible.builtin.uri:
-    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/%23{{ _room.alias }}%3A{{ matrix_domain }}"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ _admin_token }}"
-    status_code: 200
-  register: _room_alias_result
-  no_log: true
-
-- name: "{{ _room.name }} - force-join all members via Synapse Admin API"
-  ansible.builtin.uri:
-    url: "{{ matrix_homeserver_url }}/_synapse/admin/v1/join/{{ _room_alias_result.json.room_id }}"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ _admin_token }}"
-    body_format: json
-    body:
-      user_id: "{{ item.user_id }}:{{ matrix_domain }}"
-    status_code: 200
-  loop: "{{ _room.members }}"
-  loop_control:
-    label: "{{ item.user_id }}"
-  register: _join_results
 
 - name: "{{ _room.name }} - results"
   ansible.builtin.debug:
@@ -85,7 +68,6 @@
       - "Room:    {{ _room.name }} (#{{ _room.alias }}:{{ matrix_domain }})"
       - "Changed: {{ _room_result.changed }}"
       - "Summary: {{ _room_result.summary | default('') }}"
-      - "Joined:  {{ _join_results.results | length }} members force-joined"
 
 - name: "{{ _room.name }} - reset accumulator"
   ansible.builtin.set_fact:

@@ -1,0 +1,80 @@
+---
+# Per-room member + power level assertions. Called by verify_1_members.yml.
+# Input: _v1_room (room definition), _v_room_ids (alias → room_id), _admin_token
+
+- name: "verify_1 | set room facts — {{ _v1_room.name }}"
+  ansible.builtin.set_fact:
+    _v1_room_id: "{{ _v_room_ids[_v1_room.alias] }}"
+    _v1_expected_members: >-
+      {{
+        (_v1_room.members | map(attribute='user_id') | list)
+        + (default_members | default([]) | map(attribute='user_id') | list)
+      }}
+    _v1_expected_levels: >-
+      {{
+        dict(
+          (default_members | default([]))
+          | map(attribute='user_id')
+          | zip((default_members | default([]) | map(attribute='power_level')))
+        )
+        | combine(
+          dict(
+            _v1_room.members | selectattr('power_level', 'defined')
+            | map(attribute='user_id')
+            | zip(_v1_room.members | selectattr('power_level', 'defined') | map(attribute='power_level'))
+          )
+        )
+      }}
+
+- name: "verify_1 | get joined members — {{ _v1_room.name }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _v1_room_id }}/joined_members"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _admin_token }}"
+    status_code: 200
+  register: _v1_joined
+  delegate_to: localhost
+
+- name: "verify_1 | get power levels — {{ _v1_room.name }}"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/rooms/{{ _v1_room_id }}/state/m.room.power_levels"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _admin_token }}"
+    status_code: 200
+  register: _v1_levels
+  delegate_to: localhost
+
+- name: "verify_1 | qualify expected member IDs — {{ _v1_room.name }}"
+  ansible.builtin.set_fact:
+    _v1_qualified_members: >-
+      {{
+        _v1_expected_members
+        | map('regex_replace', '^(@[^@:]+)$', '\1:' + matrix_domain) | list
+        | map('regex_replace', '^(@[^:]+:[^:]+)$', '\1') | list
+      }}
+    _v1_joined_list: "{{ _v1_joined.json.joined.keys() | list }}"
+
+- name: "verify_1 | assert members joined — {{ _v1_room.name }}"
+  ansible.builtin.assert:
+    that:
+      - "(_v1_qualified_members | difference(_v1_joined_list)) | length == 0"
+    fail_msg: "✗ {{ _v1_room.name }}: missing {{ _v1_qualified_members | difference(_v1_joined_list) }}, joined={{ _v1_joined_list }}"
+    success_msg: "✓ {{ _v1_room.name }}: all {{ _v1_qualified_members | length }} members joined"
+
+- name: "verify_1 | assert power levels — {{ _v1_room.name }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _v1_levels.json.users.get(_uid + ':' + matrix_domain,
+          _v1_levels.json.users.get(_uid, -1)) == _lvl
+    fail_msg: "✗ {{ _v1_room.name }}: {{ _uid }} expected power {{ _lvl }}, got {{ _v1_levels.json.users.get(_uid + ':' + matrix_domain, '?') }}"
+    success_msg: "✓ {{ _v1_room.name }}: {{ _uid }} has power {{ _lvl }}"
+  loop: "{{ _v1_expected_levels | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    _uid: "{{ item.key }}"
+    _lvl: "{{ item.value }}"
+  when: item.key != '@admin'

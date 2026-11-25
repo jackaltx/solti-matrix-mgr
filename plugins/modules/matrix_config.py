@@ -410,6 +410,13 @@ def create_room(module, homeserver_url, access_token, domain, room_config):
             "content": {"algorithm": "m.megolm.v1.aes-sha2"}
         }]
 
+    # Power level structure: state changes require level 100 (bureaucrats only),
+    # anyone can send messages. Configurable per-room via state_default.
+    body['power_level_content_override'] = {
+        'state_default': room_config.get('state_default', 100),
+        'events_default': 0,
+    }
+
     resp, info = fetch_url(
         module, url, headers=headers, method="POST",
         data=json.dumps(body)

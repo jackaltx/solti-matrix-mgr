@@ -1,0 +1,36 @@
+---
+# verify_0_rooms: assert each declared room exists and resolves on the homeserver.
+
+- name: "verify_0 | resolve room aliases"
+  ansible.builtin.uri:
+    url: "{{ matrix_homeserver_url }}/_matrix/client/v3/directory/room/{{ ('#' + item.alias + ':' + matrix_domain) | urlencode }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _admin_token }}"
+    status_code: [200, 404]
+  register: _v0_room_lookups
+  loop: "{{ matrix_rooms }}"
+  loop_control:
+    label: "{{ item.name }}"
+  delegate_to: localhost
+
+- name: "verify_0 | assert all rooms exist"
+  ansible.builtin.assert:
+    that:
+      - item.status == 200
+    fail_msg: "✗ Room #{{ matrix_rooms[idx].alias }}:{{ matrix_domain }} not found"
+    success_msg: "✓ Room #{{ matrix_rooms[idx].alias }}:{{ matrix_domain }} exists"
+  loop: "{{ _v0_room_lookups.results }}"
+  loop_control:
+    index_var: idx
+    label: "{{ matrix_rooms[idx].name }}"
+
+- name: "verify_0 | store room IDs for later levels"
+  ansible.builtin.set_fact:
+    _v_room_ids: >-
+      {{
+        dict(
+          matrix_rooms | map(attribute='alias')
+          | zip(_v0_room_lookups.results | map(attribute='json') | map(attribute='room_id'))
+        )
+      }}

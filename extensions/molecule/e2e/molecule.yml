@@ -20,12 +20,50 @@ provisioner:
       all:
         ansible_connection: local
         matrix_homeserver_url: "http://localhost:8008"
+        matrix_domain: "matrix.test"
         matrix_admin_user: "@admin:matrix.test"
         matrix_admin_password: "molecule_admin_password"
-        matrix_bot_user: "@bot:matrix.test"
-        matrix_bot_password: "molecule_bot_password"
-        matrix_room_alias: "test-room"
-        matrix_room_id: "#test-room:matrix.test"
+        matrix_no_log: false
+    host_vars:
+      synapse-test:
+        # Bureaucrats automatically added to every room
+        default_members:
+          - { user_id: "@admin", power_level: 100 }
+
+        # Human accounts — created on bootstrap, referenced in rooms
+        matrix_humans:
+          - user_id: "@owner"
+            displayname: "Owner"
+            password: "human_test_password"
+
+        # Bot definitions — credentials and properties
+        matrix_bots:
+          - user_id: "@testbot1"
+            displayname: "Test Bot 1"
+            password: "roombot_test_password"
+            ratelimit_override: { messages_per_second: 0, burst_count: 0 }
+          - user_id: "@testbot2"
+            displayname: "Test Bot 2"
+            password: "roombot2_test_password"
+            ratelimit_override: { messages_per_second: 0, burst_count: 0 }
+
+        # Rooms — the unit of provisioning
+        matrix_rooms:
+          - name: "test-room1"
+            alias: "TestRoom1"
+            display_name: "Test Room"
+            topic: "Solti Test Room 1 for bots"
+            members:
+              - { user_id: "@owner", power_level: 100, type: human }
+              - { user_id: "@testbot1", power_level: 50, type: bot }
+
+          - name: "test-room2"
+            alias: "TestRoom2"
+            display_name: "Solti Test Room 2 for bots"
+            topic: "CI events"
+            members:
+              - { user_id: "@owner", power_level: 100, type: human }
+              - { user_id: "@testbot2", power_level: 50, type: bot }
 
 scenario:
   test_sequence:
