@@ -8,10 +8,10 @@
       ansible.builtin.command:
         cmd: >
           docker run --rm
-          -v {{ molecule_ephemeral_directory }}/synapse_data:/data
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data:Z
           -e SYNAPSE_SERVER_NAME=matrix.test
           -e SYNAPSE_REPORT_STATS=no
-          matrixdotorg/synapse:latest generate
+          docker.io/matrixdotorg/synapse:latest generate
       delegate_to: localhost
       changed_when: true
 
@@ -29,8 +29,8 @@
           --name {{ inventory_hostname }}
           --network matrix-net
           -p 8008:8008
-          -v {{ molecule_ephemeral_directory }}/synapse_data:/data
-          matrixdotorg/synapse:latest
+          -v {{ molecule_ephemeral_directory }}/synapse_data:/data:Z
+          docker.io/matrixdotorg/synapse:latest
       delegate_to: localhost
       changed_when: true
 
