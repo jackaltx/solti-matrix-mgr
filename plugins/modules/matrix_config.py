@@ -448,12 +448,15 @@ def get_power_levels(module, homeserver_url, access_token, room_id):
     return {}
 
 
-def set_power_levels(module, homeserver_url, access_token, room_id, members, domain):
+def set_power_levels(module, homeserver_url, access_token, room_id, members, domain, caller_user_id=None):
     """Apply declared power_level values from members list to the room.
 
     Merges into the existing m.room.power_levels state event — levels for users
     not in the config are preserved unchanged. Returns True if the state event
     was updated, False if nothing needed changing.
+
+    Synapse rejects the state event if the sender appears in content.users, so
+    caller_user_id is excluded from the update (their level is managed by Synapse).
     """
     # Collect only members that have an explicit power_level declared
     desired = {}
@@ -463,7 +466,10 @@ def set_power_levels(module, homeserver_url, access_token, room_id, members, dom
         user_id_short = member['user_id']
         if not user_id_short.startswith('@'):
             user_id_short = f"@{user_id_short}"
-        desired[f"{user_id_short}:{domain}"] = member['power_level']
+        full_uid = f"{user_id_short}:{domain}"
+        if caller_user_id and full_uid == caller_user_id:
+            continue  # Synapse forbids the sender appearing in content.users
+        desired[full_uid] = member['power_level']
 
     if not desired:
         return False
@@ -609,7 +615,7 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config, calle
         # Apply declared power levels (must happen after invites so users exist in room)
         power_levels_set = set_power_levels(
             module, homeserver_url, access_token, room_id,
-            room_config.get('members', []), domain
+            room_config.get('members', []), domain, caller_user_id
         )
 
         result = {
@@ -654,7 +660,7 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config, calle
     # Apply declared power levels regardless of whether members changed
     power_levels_changed = set_power_levels(
         module, homeserver_url, access_token, room_id,
-        room_config.get('members', []), domain
+        room_config.get('members', []), domain, caller_user_id
     )
 
     if members_added or power_levels_changed:
