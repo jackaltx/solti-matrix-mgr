@@ -90,6 +90,23 @@ options:
                     min_lifetime_days:
                         description: Keep messages at least N days
                         type: int
+    default_members:
+        description: >
+            Members automatically added to every room (e.g. admin accounts, operators).
+            Merged with each room's own members list; per-room entries win on conflict.
+            The token owner is never re-invited (they auto-join as creator) but their
+            power level is still applied.
+        type: list
+        elements: dict
+        default: []
+        suboptions:
+            user_id:
+                description: User ID with or without leading @
+                required: true
+                type: str
+            power_level:
+                description: Power level to assign
+                type: int
     validate_certs:
         description: Validate SSL certificates
         type: bool
@@ -330,6 +347,16 @@ def generate_user_token(module, homeserver_url, user_id, password):
         return None
 
 
+def get_caller_user_id(module, homeserver_url, access_token):
+    """Return the user_id the access_token belongs to (via whoami)."""
+    url = f"{homeserver_url}/_matrix/client/v3/account/whoami"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp, info = fetch_url(module, url, headers=headers, method="GET")
+    if info['status'] == 200:
+        return json.loads(resp.read()).get('user_id')
+    return None
+
+
 def query_room(module, homeserver_url, access_token, room_alias):
     """Query if room exists"""
     # URL encode the room alias
@@ -537,7 +564,7 @@ def get_room_members(module, homeserver_url, access_token, room_id):
     return members
 
 
-def ensure_room(module, homeserver_url, access_token, domain, room_config):
+def ensure_room(module, homeserver_url, access_token, domain, room_config, caller_user_id=None):
     """Ensure room exists and has correct members"""
     alias_short = room_config['alias']
     if not alias_short.startswith('#'):
@@ -562,13 +589,17 @@ def ensure_room(module, homeserver_url, access_token, domain, room_config):
                 module, homeserver_url, access_token, room_id, room_config['retention']
             )
 
-        # Invite members
+        # Invite members — skip the token owner (already joined as room creator)
         members_invited = []
         for member in room_config.get('members', []):
             user_id_short = member['user_id']
             if not user_id_short.startswith('@'):
                 user_id_short = f"@{user_id_short}"
             user_id = f"{user_id_short}:{domain}"
+
+            if caller_user_id and user_id == caller_user_id:
+                members_invited.append(user_id_short)  # count as handled
+                continue
 
             status = invite_to_room(module, homeserver_url, access_token, room_id, user_id)
             # 200=invited, 403=already in room, 429=rate limit - all acceptable
@@ -654,6 +685,7 @@ def run_module():
         domain=dict(type='str', required=True),
         users=dict(type='list', elements='dict', default=[]),
         rooms=dict(type='list', elements='dict', default=[]),
+        default_members=dict(type='list', elements='dict', default=[]),
         validate_certs=dict(type='bool', default=True),
     )
 
@@ -667,6 +699,7 @@ def run_module():
     domain = module.params['domain']
     users_config = module.params['users']
     rooms_config = module.params['rooms']
+    default_members = module.params['default_members']
 
     user_results = []
     room_results = []
@@ -691,9 +724,24 @@ def run_module():
             if token:
                 user_tokens[user_id] = token
 
+    # Identify the token owner once — used to skip re-inviting the room creator
+    caller_user_id = get_caller_user_id(module, homeserver_url, access_token)
+
     # Process rooms
     for room_config in rooms_config:
-        result = ensure_room(module, homeserver_url, access_token, domain, room_config)
+        # Merge default_members into this room's members.
+        # Build a dict keyed by normalised user_id; room-specific entries win.
+        merged = {}
+        for m in default_members:
+            key = m['user_id'] if m['user_id'].startswith('@') else f"@{m['user_id']}"
+            merged[key] = m
+        for m in room_config.get('members', []):
+            key = m['user_id'] if m['user_id'].startswith('@') else f"@{m['user_id']}"
+            merged[key] = m
+        effective_config = dict(room_config)
+        effective_config['members'] = list(merged.values())
+
+        result = ensure_room(module, homeserver_url, access_token, domain, effective_config, caller_user_id)
         room_results.append(result)
         if result['changed']:
             changed = True

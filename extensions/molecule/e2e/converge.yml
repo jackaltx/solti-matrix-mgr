@@ -24,6 +24,9 @@
         homeserver_url: "{{ matrix_homeserver_url }}"
         access_token: "{{ admin_login.json.access_token }}"
         domain: "matrix.test"
+        default_members:
+          - user_id: "@admin"
+            power_level: 100
         users:
           - user_id: "@bot"
             displayname: "E2E Sender Bot"
@@ -33,8 +36,6 @@
           - alias: "{{ matrix_room_alias }}"
             name: "E2E Integration Room"
             members:
-              - user_id: "@admin"
-                power_level: 100
               - user_id: "@bot"
       register: config_result
 
